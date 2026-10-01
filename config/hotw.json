@@ -1,0 +1,24 @@
+{
+  "global": {
+    "hold_ms": 150,
+    "ammo_drop_shot": true,
+    "led_mode": "life_bar",
+    "trace_enabled": false
+  },
+  "games": {
+    "Rambo": { "rumble": true, "leds": true },
+    "WalkingDead": { "rumble": true, "leds": true },
+    "Terminator": { "rumble": true, "leds": false },
+    "hotd2": { "rumble": true, "leds": true },
+    "hotd3": { "rumble": true, "leds": true },
+    "hotd4": { "rumble": true, "leds": true },
+    "2spicy": { "rumble": true, "leds": true },
+    "la-machineguns": { "rumble": true, "leds": true },
+    "gunblade-ny": { "rumble": true, "leds": true },
+    "timecris2": { "rumble": true, "leds": true },
+    "timecris3": { "rumble": true, "leds": true },
+    "timecris4": { "rumble": true, "leds": true },
+    "virtuacop3": { "rumble": true, "leds": true },
+    "Transformers": { "rumble": true, "leds": true }
+  }
+}

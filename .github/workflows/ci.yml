@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Run Python Selftest
+        run: python src/hotwm_relay.py --selftest
+
+      - name: Run Python Unit Tests
+        run: python -m unittest discover tests
+
+      - name: Run PowerShell Pester Tests
+        shell: powershell
+        run: Invoke-Pester .\tests\Hotwm.Tests.ps1 -EnableExit
