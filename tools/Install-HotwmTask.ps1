@@ -34,7 +34,8 @@ if (-not $pythonw) {
 Write-Host "=== Registering Scheduled Task: '$TaskName' ===" -ForegroundColor Cyan
 Write-Host "Action: `"$pythonw`" `"$relayPy`"" -ForegroundColor Gray
 
-$action = New-ScheduledTaskAction -Execute $pythonw -Argument "`"$relayPy`""
+$workDir = $scriptDir
+$action = New-ScheduledTaskAction -Execute $pythonw -Argument "`"$relayPy`"" -WorkingDirectory $workDir
 $trigger = New-ScheduledTaskTrigger -AtLogOn
 $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit 0 -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
 $principal = New-ScheduledTaskPrincipal -UserId $env:USERNAME -LogonType Interactive
