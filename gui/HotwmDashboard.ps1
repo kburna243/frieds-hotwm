@@ -412,6 +412,35 @@ if ($controls.BtnQueryInputMatrix) {
     })
 }
 
+# Query Output Safety Check (Kit outputs.verify_safety)
+if ($controls.BtnVerifyOutputSafety) {
+    $controls.BtnVerifyOutputSafety.Add_Click({
+        if (Get-Command Get-HotwmOutputSafety -ErrorAction SilentlyContinue) {
+            $res = Get-HotwmOutputSafety
+            if ($res.Success -and $res.Data) {
+                $d = $res.Data
+                $dcText = if ($d.DoubleConsumers -and $d.DoubleConsumers.Count -gt 0) {
+                    ($d.DoubleConsumers | ForEach-Object { "⚠ $($_.Detail)" }) -join "`n"
+                } else { "✓ No double consumers detected (no double-rumble risk)" }
+
+                $solText = if ($d.SolenoidGuard.Ok) { "✓ Solenoid Guard active" } else { "⚠ Solenoid Guard issue: $($d.SolenoidGuard.Detail)" }
+                $gmText = "✓ Gunmote INIs found: $($d.GunmoteConfig.InisFound) (Connected: $($d.GunmoteConfig.Connected))"
+                $midText = "Detected Middlewares: $(($d.DetectedOutputs) -join ', ')"
+
+                $warnText = if ($res.Warnings -and $res.Warnings.Count -gt 0) {
+                    "`n`nWarnings:`n" + (($res.Warnings | ForEach-Object { "- $_" }) -join "`n")
+                } else { "" }
+
+                [System.Windows.MessageBox]::Show("Retro Cabinet Kit Output Safety Verification:`n`n$solText`n$gmText`n$midText`n`nDouble Consumer Status:`n$dcText$warnText", "Cabinet Output Safety Check", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Information)
+            } else {
+                [System.Windows.MessageBox]::Show("Output safety check returned:`n$($res.Message)", "Output Safety Check", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Warning)
+            }
+        } else {
+            [System.Windows.MessageBox]::Show("Kit client or operation outputs.verify_safety not available.", "Output Safety Check", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Information)
+        }
+    })
+}
+
 # Haptic Tests
 $controls.BtnTestP1Rumble.Add_Click({
     $controls.TextTestFeedback.Text = "Sending P1 Rumble Kick..."

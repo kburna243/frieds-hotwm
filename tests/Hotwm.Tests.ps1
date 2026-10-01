@@ -98,6 +98,17 @@ Describe 'hotwm — Kit API Contract Compatibility' {
             ($res.Data.Profiles | Where-Object { $_.Name -eq 'ipac2-default' }) | Should Not Be $null
         }
     }
+
+    It 'Get-HotwmOutputSafety queries Kit operation outputs.verify_safety successfully' {
+        . (Join-Path $script:repoRoot 'src\KitClient.ps1')
+        if (Test-HotwmKitAvailable) {
+            $res = Get-HotwmOutputSafety
+            $res | Should Not Be $null
+            $res.Success | Should Be $true
+            $res.Data.SolenoidGuard | Should Not Be $null
+            $res.Data.DetectedOutputs | Should Not Be $null
+        }
+    }
 }
 
 Describe 'hotwm — GUI Dashboard' {
@@ -124,7 +135,9 @@ Describe 'hotwm — GUI Dashboard' {
         $ui.Controls.SliderHoldMs | Should Not Be $null
         $ui.Controls.GridGameProfiles | Should Not Be $null
         $ui.Controls.BtnQueryInputMatrix | Should Not Be $null
+        $ui.Controls.BtnVerifyOutputSafety | Should Not Be $null
     }
 }
+
 
 

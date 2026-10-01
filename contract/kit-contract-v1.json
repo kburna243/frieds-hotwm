@@ -52,6 +52,11 @@
       "Name": "controllers.input_apply",
       "Kind": "Change",
       "Description": "Apply input profile as MAME ctrlr configuration."
+    },
+    {
+      "Name": "outputs.verify_safety",
+      "Kind": "Read",
+      "Description": "Verify output middleware safety (port conflicts on 8000, double consumers, solenoid guard)."
     }
   ]
 }

@@ -152,3 +152,18 @@ function Set-HotwmInputProfile {
     return Invoke-HotwmKitApi -Operation "controllers.input_apply" -Parameters $params -Apply:$Apply
 }
 
+function Get-HotwmOutputSafety {
+    <#
+    .SYNOPSIS
+        Verifies output middleware safety (port conflicts on 8000, double consumers, solenoid guard) via Kit operation 'outputs.verify_safety'.
+    #>
+    [CmdletBinding()]
+    param([string]$RetroBatRoot = "")
+
+    $params = @{}
+    if ($RetroBatRoot) { $params['RetroBatRoot'] = $RetroBatRoot }
+
+    return Invoke-HotwmKitApi -Operation "outputs.verify_safety" -Parameters $params
+}
+
+
