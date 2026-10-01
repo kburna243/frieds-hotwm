@@ -134,14 +134,14 @@ function Get-ViGEmBusStatus {
 }
 
 function Get-WiimoteDevicesStatus {
-    # Check DolphinBar or Wiimote PnP
+    # Wiimotes over Bluetooth (RVL-CNT-01) or a DolphinBar
     $devices = Get-PnpDevice -ErrorAction SilentlyContinue |
         Where-Object { $_.FriendlyName -match "DolphinBar|Wiimote|RVL-CNT-01|Nintendo" -and $_.Status -eq "OK" }
     if ($devices) {
         $names = ($devices | ForEach-Object { $_.FriendlyName } | Select-Object -Unique) -join ", "
         return @{ Connected = $true; Message = "Detected: $names" }
     }
-    return @{ Connected = $false; Message = "No DolphinBar / Wiimote active in Device Manager" }
+    return @{ Connected = $false; Message = "No Wiimote found (Bluetooth or DolphinBar) in Device Manager" }
 }
 
 function Get-HotwmTaskStatus {
@@ -234,11 +234,11 @@ function Update-DashboardStatus {
     if (Get-Command Test-HotwmKitAvailable -ErrorAction SilentlyContinue) {
         $kitAvail = Test-HotwmKitAvailable
         if ($kitAvail) {
-            $kitRoot = Get-HotwmKitRoot
+            $kitVersion = Get-HotwmKitVersion
             $controls.DotKit.Fill = $brushGreen
-            $controls.TextKitBadge.Text = "CONNECTED (v1.3)"
+            $controls.TextKitBadge.Text = "CONNECTED"
             $controls.TextKitBadge.Foreground = $brushGreen
-            $controls.TextKitDetail.Text = "Kit v1.3.0 (API 1.5): outputs.wiimote_hook + Input Matrix"
+            $controls.TextKitDetail.Text = "Kit v$($kitVersion): outputs.wiimote_hook + Input Matrix"
         } else {
             $controls.DotKit.Fill = $brushGray
             $controls.TextKitBadge.Text = "STANDALONE"
@@ -402,7 +402,7 @@ if ($controls.BtnQueryInputMatrix) {
             $res = Get-HotwmInputProfiles
             if ($res.Success -and $res.Data.Profiles) {
                 $pList = ($res.Data.Profiles | ForEach-Object { "• $($_.Name): $($_.Description) ($($_.Intents) intents)" }) -join "`n`n"
-                [System.Windows.MessageBox]::Show("Fried's Retrogaming Kit v1.3.0 Input Matrix Profiles:`n`n$pList`n`nProfil 'ipac2-default' stammt aus der I-PAC 2 Werksbelegung (Keyboard + Trackball/Maus).`nGunmote-Wiimotes melden sich als XInput-Gamepad (MAME sieht JOYCODE, z.B. P1_BUTTON1 = KEY_LCONTROL + JOY1_BUTTON2).", "Cabinet Input Matrix (API 1.5)", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Information)
+                [System.Windows.MessageBox]::Show("Fried's Retrogaming Kit v$(Get-HotwmKitVersion) Input Matrix Profiles:`n`n$pList`n`nProfil 'ipac2-default' stammt aus der I-PAC 2 Werksbelegung (Keyboard + Trackball/Maus).`nGunmote-Wiimotes melden sich als XInput-Gamepad (MAME sieht JOYCODE, z.B. P1_BUTTON1 = KEY_LCONTROL + JOY1_BUTTON2).", "Cabinet Input Matrix (API 1.5)", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Information)
             } else {
                 [System.Windows.MessageBox]::Show("No input profiles found or Kit API returned: $($res.Message)", "Cabinet Input Matrix", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Warning)
             }
@@ -503,7 +503,8 @@ $controls.BtnPingRelay.Add_Click({
 })
 
 # Log Controls
-$traceLogPath = Join-Path ([System.IO.Path]::GetTempPath()) "recoil-stretch-trace.log"
+# Same file the relay writes (hotwm_relay.py TRACE_LOG: the repo folder above src\)
+$traceLogPath = Join-Path $repoDir "recoil-stretch-trace.log"
 $controls.BtnClearLog.Add_Click({
     $controls.TextLogOutput.Text = ""
     if (Test-Path $traceLogPath) {
@@ -570,6 +571,7 @@ $result = [pscustomobject]@{
     Window   = $window
     Controls = $controls
     Config   = $configPath
+    TraceLog = $traceLogPath
 }
 
 if ($NoShow) {

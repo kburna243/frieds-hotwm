@@ -184,6 +184,14 @@ Describe 'hotwm — GUI Dashboard' {
         $ui.Controls.BtnQueryInputMatrix | Should Not Be $null
         $ui.Controls.BtnVerifyOutputSafety | Should Not Be $null
     }
+
+    It 'Live Log Monitor tails the same trace file the relay writes' {
+        # hotwm_relay.py: TRACE_LOG = Path(__file__).resolve().parent.parent / "recoil-stretch-trace.log"
+        $relay = [IO.File]::ReadAllText((Join-Path $script:repoRoot 'src\hotwm_relay.py'))
+        $relay | Should Match 'TRACE_LOG = Path\(__file__\)\.resolve\(\)\.parent\.parent / "recoil-stretch-trace\.log"'
+        $ui = & (Join-Path $script:repoRoot 'gui\HotwmDashboard.ps1') -NoShow
+        $ui.TraceLog | Should Be (Join-Path $script:repoRoot 'recoil-stretch-trace.log')
+    }
 }
 
 Describe 'hotwm — Packaging' {

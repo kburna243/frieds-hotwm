@@ -136,7 +136,7 @@
                                             <Ellipse x:Name="DotRelay" Width="10" Height="10" Fill="#FF5252" Margin="0,0,10,0" Grid.Column="0"/>
                                             <StackPanel Grid.Column="1">
                                                 <TextBlock Text="hotwm Relay Engine" FontWeight="Bold" FontSize="13"/>
-                                                <TextBlock x:Name="TextRelayDetail" Text="Port 8000 listening: No" FontSize="11" Foreground="#8F93A2"/>
+                                                <TextBlock x:Name="TextRelayDetail" Text="Port 8000 listening: No" FontSize="11" Foreground="#8F93A2" TextWrapping="Wrap" Margin="0,0,12,0"/>
                                             </StackPanel>
                                             <TextBlock x:Name="TextRelayBadge" Text="OFFLINE" Foreground="#FF5252" FontWeight="Bold" Grid.Column="2" VerticalAlignment="Center"/>
                                         </Grid>
@@ -153,7 +153,7 @@
                                             <Ellipse x:Name="DotGunmote" Width="10" Height="10" Fill="#FFB020" Margin="0,0,10,0" Grid.Column="0"/>
                                             <StackPanel Grid.Column="1">
                                                 <TextBlock Text="Gunmote Process" FontWeight="Bold" FontSize="13"/>
-                                                <TextBlock x:Name="TextGunmoteDetail" Text="Checking..." FontSize="11" Foreground="#8F93A2"/>
+                                                <TextBlock x:Name="TextGunmoteDetail" Text="Checking..." FontSize="11" Foreground="#8F93A2" TextWrapping="Wrap" Margin="0,0,12,0"/>
                                             </StackPanel>
                                             <TextBlock x:Name="TextGunmoteBadge" Text="UNKNOWN" Foreground="#FFB020" FontWeight="Bold" Grid.Column="2" VerticalAlignment="Center"/>
                                         </Grid>
@@ -170,7 +170,7 @@
                                             <Ellipse x:Name="DotVigem" Width="10" Height="10" Fill="#FFB020" Margin="0,0,10,0" Grid.Column="0"/>
                                             <StackPanel Grid.Column="1">
                                                 <TextBlock Text="ViGEmBus Controller Driver" FontWeight="Bold" FontSize="13"/>
-                                                <TextBlock x:Name="TextVigemDetail" Text="Virtual Gamepad Bus" FontSize="11" Foreground="#8F93A2"/>
+                                                <TextBlock x:Name="TextVigemDetail" Text="Virtual Gamepad Bus" FontSize="11" Foreground="#8F93A2" TextWrapping="Wrap" Margin="0,0,12,0"/>
                                             </StackPanel>
                                             <TextBlock x:Name="TextVigemBadge" Text="UNKNOWN" Foreground="#FFB020" FontWeight="Bold" Grid.Column="2" VerticalAlignment="Center"/>
                                         </Grid>
@@ -189,8 +189,8 @@
                                             </Grid.ColumnDefinitions>
                                             <Ellipse x:Name="DotWiimote" Width="10" Height="10" Fill="#FFB020" Margin="0,0,10,0" Grid.Column="0"/>
                                             <StackPanel Grid.Column="1">
-                                                <TextBlock Text="Wiimotes &amp; DolphinBar" FontWeight="Bold" FontSize="13"/>
-                                                <TextBlock x:Name="TextWiimoteDetail" Text="DolphinBar Mode 4 / Bluetooth" FontSize="11" Foreground="#8F93A2"/>
+                                                <TextBlock Text="Wiimotes (Bluetooth / DolphinBar)" FontWeight="Bold" FontSize="13"/>
+                                                <TextBlock x:Name="TextWiimoteDetail" Text="Bluetooth or DolphinBar" FontSize="11" Foreground="#8F93A2" TextWrapping="Wrap" Margin="0,0,12,0"/>
                                             </StackPanel>
                                             <TextBlock x:Name="TextWiimoteBadge" Text="UNKNOWN" Foreground="#FFB020" FontWeight="Bold" Grid.Column="2" VerticalAlignment="Center"/>
                                         </Grid>
@@ -207,7 +207,7 @@
                                             <Ellipse x:Name="DotTask" Width="10" Height="10" Fill="#FFB020" Margin="0,0,10,0" Grid.Column="0"/>
                                             <StackPanel Grid.Column="1">
                                                 <TextBlock Text="Windows Autostart Task" FontWeight="Bold" FontSize="13"/>
-                                                <TextBlock x:Name="TextTaskDetail" Text="Task: Gunmote Recoil Stretch" FontSize="11" Foreground="#8F93A2"/>
+                                                <TextBlock x:Name="TextTaskDetail" Text="Task: Gunmote Recoil Stretch" FontSize="11" Foreground="#8F93A2" TextWrapping="Wrap" Margin="0,0,12,0"/>
                                             </StackPanel>
                                             <TextBlock x:Name="TextTaskBadge" Text="CHECKING" Foreground="#FFB020" FontWeight="Bold" Grid.Column="2" VerticalAlignment="Center"/>
                                         </Grid>
@@ -224,7 +224,7 @@
                                             <Ellipse x:Name="DotKit" Width="10" Height="10" Fill="#82AAFF" Margin="0,0,10,0" Grid.Column="0"/>
                                             <StackPanel Grid.Column="1">
                                                 <TextBlock Text="Retro Cabinet Kit API" FontWeight="Bold" FontSize="13"/>
-                                                <TextBlock x:Name="TextKitDetail" Text="outputs.wiimote_hook (API 1.4+)" FontSize="11" Foreground="#8F93A2"/>
+                                                <TextBlock x:Name="TextKitDetail" Text="outputs.wiimote_hook (API 1.4+)" FontSize="11" Foreground="#8F93A2" TextWrapping="Wrap" Margin="0,0,12,0"/>
                                             </StackPanel>
                                             <TextBlock x:Name="TextKitBadge" Text="CHECKING" Foreground="#82AAFF" FontWeight="Bold" Grid.Column="2" VerticalAlignment="Center"/>
                                         </Grid>
@@ -240,7 +240,7 @@
                                 <Button x:Name="BtnInstallTask" Content="⚙ Install Windows Task (Autostart)" Margin="0,0,10,6"/>
                                 <Button x:Name="BtnUninstallTask" Content="✕ Remove Windows Task" Margin="0,0,10,6"/>
                                 <Button x:Name="BtnQueryKit" Content="🔍 Query Kit Health" Style="{StaticResource AccentButton}" Margin="0,0,10,6"/>
-                                <Button x:Name="BtnQueryInputMatrix" Content="🎮 Cabinet Input Matrix (Kit v1.3)" Style="{StaticResource AccentButton}" Margin="0,0,10,6"/>
+                                <Button x:Name="BtnQueryInputMatrix" Content="🎮 Cabinet Input Matrix (Kit)" Style="{StaticResource AccentButton}" Margin="0,0,10,6"/>
                                 <Button x:Name="BtnVerifyOutputSafety" Content="🛡 Output Safety Check (Kit)" Style="{StaticResource AccentButton}" Margin="0,0,10,6"/>
                             </WrapPanel>
                         </GroupBox>
@@ -327,6 +327,16 @@
                                           Foreground="#ECEFF4" BorderBrush="#2D3148" HeadersVisibility="Column"
                                           GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#2D3148"
                                           MaxHeight="260" Margin="0,0,0,12">
+                                    <DataGrid.ColumnHeaderStyle>
+                                        <Style TargetType="DataGridColumnHeader">
+                                            <Setter Property="Background" Value="#25293E"/>
+                                            <Setter Property="Foreground" Value="#8F93A2"/>
+                                            <Setter Property="FontWeight" Value="Bold"/>
+                                            <Setter Property="Padding" Value="8,6"/>
+                                            <Setter Property="BorderBrush" Value="#2D3148"/>
+                                            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                                        </Style>
+                                    </DataGrid.ColumnHeaderStyle>
                                     <DataGrid.Columns>
                                         <DataGridTextColumn Header="Game / Title" Binding="{Binding Name}" Width="2*" IsReadOnly="True"/>
                                         <DataGridCheckBoxColumn Header="Recoil Rumble" Binding="{Binding Rumble}" Width="*"/>
@@ -367,7 +377,7 @@
                                  BorderThickness="0" Padding="8"/>
                     </Border>
 
-                    <TextBlock Grid.Row="2" x:Name="TextLogFooter" Text="Logs are written to %TEMP%\recoil-stretch-trace.log when trace logging is enabled." FontSize="11" Foreground="#8F93A2" Margin="0,8,0,0"/>
+                    <TextBlock Grid.Row="2" x:Name="TextLogFooter" Text="Logs are written to recoil-stretch-trace.log in the hotwm folder when trace logging is enabled." FontSize="11" Foreground="#8F93A2" Margin="0,8,0,0"/>
                 </Grid>
             </TabItem>
         </TabControl>

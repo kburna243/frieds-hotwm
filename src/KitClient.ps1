@@ -44,6 +44,17 @@ function Test-HotwmKitAvailable {
     return (Test-Path (Join-Path $kit "api\Invoke-KitApi.ps1"))
 }
 
+function Get-HotwmKitVersion {
+    # The kit's VERSION file is the same source its API reports as KitVersion; reading it avoids a slow API call.
+    [CmdletBinding()]
+    param()
+    $kit = Get-HotwmKitRoot
+    if (-not $kit) { return $null }
+    $file = Join-Path $kit 'VERSION'
+    if (-not (Test-Path -LiteralPath $file)) { return $null }
+    return ([IO.File]::ReadAllText($file)).Trim()
+}
+
 function Invoke-HotwmKitApi {
     [CmdletBinding()]
     param(
