@@ -69,12 +69,12 @@ Describe 'hotwm — Kit API Contract Compatibility' {
         }
     }
 
-    It 'contract snapshot kit-contract-v1.json exists and targets ApiVersion 1.4' {
+    It 'contract snapshot kit-contract-v1.json exists and targets ApiVersion 1.5 (Kit 1.3.0)' {
         $cPath = Join-Path $script:repoRoot 'contract\kit-contract-v1.json'
         (Test-Path $cPath) | Should Be $true
         $contract = Get-Content -LiteralPath $cPath -Raw -Encoding UTF8 | ConvertFrom-Json
-        $contract.TargetKit.ApiVersion | Should Be '1.4'
-        $contract.TargetKit.KitVersion | Should Be '1.2.0'
+        $contract.TargetKit.ApiVersion | Should Be '1.5'
+        $contract.TargetKit.KitVersion | Should Be '1.3.0'
         $hookOp = $contract.RequiredOperations | Where-Object { $_.Name -eq 'outputs.wiimote_hook' }
         $hookOp | Should Not Be $null
     }

@@ -1,9 +1,10 @@
 {
-  "ContractVersion": "1.0",
+  "ContractVersion": "1.1",
   "TargetKit": {
-    "ApiVersion": "1.4",
-    "KitVersion": "1.2.0",
-    "Commit": "e6b53b7"
+    "ApiVersion": "1.5",
+    "MinApiVersion": "1.4",
+    "KitVersion": "1.3.0",
+    "Commit": "bea17aa"
   },
   "RequiredOperations": [
     {
@@ -39,6 +40,18 @@
       "Kind": "Read",
       "Description": "Detected components: Windows, RetroBat, Gunmote, ViGEmBus, DolphinBar, Steam, pinball build, PinballY.",
       "Parameters": []
+    }
+  ],
+  "SupportedOperations": [
+    {
+      "Name": "controllers.input_profiles",
+      "Kind": "Read",
+      "Description": "Input matrix button layouts across the cabinet."
+    },
+    {
+      "Name": "controllers.input_apply",
+      "Kind": "Change",
+      "Description": "Apply input profile as MAME ctrlr configuration."
     }
   ]
 }
