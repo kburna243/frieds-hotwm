@@ -31,7 +31,7 @@ switch ($Operation) {
     'operations' {
         $result = @{
             ApiVersion = "1.5"
-            KitVersion = "1.3.0"
+            KitVersion = "1.3.1"
             Operation  = "operations"
             Kind       = "Read"
             Success    = $true
@@ -87,7 +87,7 @@ switch ($Operation) {
     'outputs.wiimote_hook' {
         $result = @{
             ApiVersion = "1.5"
-            KitVersion = "1.3.0"
+            KitVersion = "1.3.1"
             Operation  = "outputs.wiimote_hook"
             Kind       = "Read"
             Success    = $true
@@ -115,7 +115,7 @@ switch ($Operation) {
     'outputs.verify_safety' {
         $result = @{
             ApiVersion = "1.5"
-            KitVersion = "1.3.0"
+            KitVersion = "1.3.1"
             Operation  = "outputs.verify_safety"
             Kind       = "Read"
             Success    = $true
@@ -135,13 +135,13 @@ switch ($Operation) {
     'controllers.input_profiles' {
         $result = @{
             ApiVersion = "1.5"
-            KitVersion = "1.3.0"
+            KitVersion = "1.3.1"
             Operation  = "controllers.input_profiles"
             Kind       = "Read"
             Success    = $true
             Status     = "Ok"
             Applied    = $false
-            Message    = "1 input profile(s)"
+            Message    = "2 input profile(s)"
             Data       = @{
                 Profiles = @(
                     @{
@@ -149,6 +149,12 @@ switch ($Operation) {
                         Description = "Ultimarc I-PAC 2 factory layout (Keyboard + Trackball/Mouse)"
                         Builtin     = $true
                         Intents     = 26
+                    },
+                    @{
+                        Name        = "cabinet"
+                        Description = "Frieds Kabinett: Wiimotes via Gunmote (XInput, wie custom1.cfg) plus I-PAC-2-Panel (wie ipac2.cfg), 2 Spieler"
+                        Builtin     = $false
+                        Intents     = 36
                     }
                 )
             }
@@ -159,7 +165,7 @@ switch ($Operation) {
         $status = if ($Apply) { "Done" } else { "WhatIf" }
         $result = @{
             ApiVersion = "1.5"
-            KitVersion = "1.3.0"
+            KitVersion = "1.3.1"
             Operation  = "controllers.input_apply"
             Kind       = "Change"
             Success    = $true
@@ -176,7 +182,7 @@ switch ($Operation) {
     'components' {
         $result = @{
             ApiVersion = "1.5"
-            KitVersion = "1.3.0"
+            KitVersion = "1.3.1"
             Operation  = "components"
             Kind       = "Read"
             Success    = $true
@@ -195,7 +201,7 @@ switch ($Operation) {
     default {
         $result = @{
             ApiVersion = "1.5"
-            KitVersion = "1.3.0"
+            KitVersion = "1.3.1"
             Operation  = $Operation
             Kind       = "Read"
             Success    = $true

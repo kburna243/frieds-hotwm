@@ -72,12 +72,12 @@ Describe 'hotwm — Kit API Live Contract (Cabinets with RetroCabinetKit)' {
         $script:kitAvailable = [bool]($script:realKit -and (Test-Path (Join-Path $script:realKit 'api\Invoke-KitApi.ps1')) -and ($script:realKit -notlike '*fake-kit*'))
     }
 
-    It 'contract snapshot kit-contract-v1.json exists and targets ApiVersion 1.5 (Kit 1.3.0)' {
+    It 'contract snapshot kit-contract-v1.json exists and targets ApiVersion 1.5 (Kit 1.3.1)' {
         $cPath = Join-Path $script:repoRoot 'contract\kit-contract-v1.json'
         (Test-Path $cPath) | Should Be $true
         $contract = Get-Content -LiteralPath $cPath -Raw -Encoding UTF8 | ConvertFrom-Json
         $contract.TargetKit.ApiVersion | Should Be '1.5'
-        $contract.TargetKit.KitVersion | Should Be '1.3.0'
+        $contract.TargetKit.KitVersion | Should Be '1.3.1'
         $hookOp = $contract.RequiredOperations | Where-Object { $_.Name -eq 'outputs.wiimote_hook' }
         $hookOp | Should Not Be $null
         $hookOp.Parameters | Should Not Be $null
@@ -183,6 +183,51 @@ Describe 'hotwm — GUI Dashboard' {
         $ui.Controls.GridGameProfiles | Should Not Be $null
         $ui.Controls.BtnQueryInputMatrix | Should Not Be $null
         $ui.Controls.BtnVerifyOutputSafety | Should Not Be $null
+    }
+}
+
+Describe 'hotwm — Packaging' {
+    BeforeAll {
+        if (-not $script:repoRoot -or -not (Test-Path (Join-Path $script:repoRoot 'config\hotw.json'))) {
+            $script:repoRoot = if ($PSScriptRoot) { Split-Path -Parent $PSScriptRoot } else { (Get-Location).Path }
+            if (-not (Test-Path (Join-Path $script:repoRoot 'config\hotw.json'))) {
+                $script:repoRoot = (Get-Location).Path
+            }
+        }
+        $script:tempOut = Join-Path ([System.IO.Path]::GetTempPath()) "hotwm_pkg_test_$([System.Guid]::NewGuid().ToString('N'))"
+    }
+
+    AfterAll {
+        if (Test-Path $script:tempOut) {
+            Remove-Item -Path $script:tempOut -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    It 'Build-HotwmPackage.ps1 script exists' {
+        (Test-Path (Join-Path $script:repoRoot 'tools\Build-HotwmPackage.ps1')) | Should Be $true
+    }
+
+    It 'Build-HotwmPackage builds a valid zip archive and sha256 checksum' {
+        $buildScript = Join-Path $script:repoRoot 'tools\Build-HotwmPackage.ps1'
+        $pkg = & $buildScript -OutDir $script:tempOut -Version '9.9.9'
+        $pkg | Should Not Be $null
+        (Test-Path $pkg.ArchiveFile) | Should Be $true
+        (Test-Path $pkg.Sha256File) | Should Be $true
+        ($pkg.FileCount -gt 10) | Should Be $true
+        $pkg.Sha256.Length | Should Be 64
+
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        $zip = [System.IO.Compression.ZipFile]::OpenRead($pkg.ArchiveFile)
+        $entryNames = $zip.Entries | ForEach-Object { $_.FullName }
+        $zip.Dispose()
+
+        ($entryNames -contains 'src\hotwm_relay.py') | Should Be $true
+        ($entryNames -contains 'gui\HotwmDashboard.ps1') | Should Be $true
+        ($entryNames -contains 'gui\HotwmDashboard.xaml') | Should Be $true
+        ($entryNames -contains 'config\hotw.json') | Should Be $true
+        ($entryNames -contains 'README.md') | Should Be $true
+        ($entryNames -contains 'README.de.md') | Should Be $true
+        ($entryNames -contains 'Start-HotwmDashboard.bat') | Should Be $true
     }
 }
 
