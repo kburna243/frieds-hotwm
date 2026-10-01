@@ -54,28 +54,46 @@ flowchart TD
     INIs --> Wiimotes
 ```
 
+```
+
 ---
 
-## 🚀 Geplante Meilensteine
+## 🖥️ Standalone WPF Dashboard
 
-1. **Phase 1: Kern-Relay Verankerung**
-   - TCP-Server (Port 8002 für FFBBlaster)
+Das Dashboard bietet eine grafische Oberfläche für Hardware-Status, Haptik-Tests, Tuning und Live-Logüberwachung:
+
+- **1-Klick Start:** Doppelklick auf `Start-HotwmDashboard.bat` (oder `.\gui\HotwmDashboard.ps1`).
+- **Hardware-Ampeln:** Echtzeit-Status von Relay, Gunmote-Prozess, ViGEmBus-Treiber, Wiimotes / DolphinBar und Kit-API.
+- **Haptik-Testbench:** Direkte Test-Buttons für Player 1 & 2 Recoil Kick (150ms) und LED-Sequenzen (1–4) ohne Spielstart.
+- **Echtzeit-Tuning:** Recoil-Stretch-Schieberegler (80–300 ms), Toggles für Ammo-Drop-Kick und LED-Lebensbalken, sowie Per-Game-Profile. Änderungen werden direkt in `hotw.json` gespeichert und im laufenden Relay **in unter 1 Sekunde hot-reloaded**.
+- **Live-Log:** Eingebetteter Stream von MAMEOutput-Events und Recoil-Impulsen.
+
+---
+
+## 🚀 Meilensteine
+
+1. **Phase 1: Kern-Relay Verankerung** ✅ *(Abgeschlossen)*
+   - TCP-Server (Port 8000 für Gunmote, Port 8002 für FFBBlaster)
    - Win32-Message-Loop für DemulShooter & MAME
-   - Optimierter Output-Adapter für Gunmote
-2. **Phase 2: Konfigurations- & Filter-Engine (`hotw.json`)**
-   - Spieleprofile und Haptik-Toggles (Rumble / LEDs)
-   - Sofort-Test-Trigger per Socket (`--test-p1-rumble`, `--test-p1-leds`)
-3. **Phase 3: Windows-Automatisierung & Kit-Schritt**
-   - Automatische Erkennung & Konfiguration (Gunmote, ViGEmBus, Bluetooth)
-   - Hintergrund-Task `Gunmote Recoil Stretch`
-4. **Phase 4: Grafische Benutzeroberfläche (WPF-Dashboard)**
-   - Status-Ampel für alle Komponenten
-   - Spiele-Auswahl & Test-Buttons für schnelles Feedback
-5. **Phase 5: Eigenständiges Standalone-Paket**
-   - Portable Distribution (`HookOfTheWiimote-Setup.zip`)
+   - Optimierter Output-Adapter mit Pulsdehnung (16ms → 150ms) und Ammo-Drop-Trigger
+2. **Phase 2: Konfigurations- & Filter-Engine (`hotw.json`)** ✅ *(Abgeschlossen)*
+   - 14 vorkonfigurierte Spieleprofile und Haptik-Toggles (Rumble / LEDs)
+   - Sofort-Test-Trigger per Socket (`--test-p1-rumble`, `--test-p1-leds`, `tools\Test-HotwmHaptics.ps1`)
+   - Kit-API-Contract v1.5 Pinned Snapshot & Drift-Prüfung
+3. **Phase 3: Windows-Automatisierung & Tools** ✅ *(Abgeschlossen)*
+   - Hintergrund-Task `Gunmote Recoil Stretch` (`Install-HotwmTask.ps1` / `Uninstall-HotwmTask.ps1`)
+   - KitClient für nahtlose Abfrage der Kit-Operation `outputs.wiimote_hook`
+4. **Phase 4: Grafische Benutzeroberfläche (WPF-Dashboard)** ✅ *(Abgeschlossen)*
+   - `gui/HotwmDashboard.ps1` & `HotwmDashboard.xaml` mit Arcade Dark Theme
+   - Status-Ampel für alle Komponenten, Haptik-Testbench, Live-Tuning und Log-Monitor
+   - 1-Klick-Starter `Start-HotwmDashboard.bat`
+5. **Phase 5: Eigenständiges Standalone-Paket & Release** ⏳ *(Nächster Schritt)*
+   - Portable Distribution (`Build-HotwmPackage.ps1` → ZIP-Release)
+   - Zweisprachige Dokumentation (`README.de.md` & `README.md`)
 
 ---
 
 ## 📜 Lizenz
 
 MIT License — Copyright (c) 2026 Friedrich Börner
+

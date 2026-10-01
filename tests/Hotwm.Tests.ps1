@@ -88,3 +88,30 @@ Describe 'hotwm — Kit API Contract Compatibility' {
         }
     }
 }
+
+Describe 'hotwm — GUI Dashboard' {
+    BeforeAll {
+        if (-not $script:repoRoot -or -not (Test-Path (Join-Path $script:repoRoot 'config\hotw.json'))) {
+            $script:repoRoot = if ($PSScriptRoot) { Split-Path -Parent $PSScriptRoot } else { (Get-Location).Path }
+            if (-not (Test-Path (Join-Path $script:repoRoot 'config\hotw.json'))) {
+                $script:repoRoot = (Get-Location).Path
+            }
+        }
+    }
+
+    It 'HotwmDashboard.xaml and HotwmDashboard.ps1 exist' {
+        (Test-Path (Join-Path $script:repoRoot 'gui\HotwmDashboard.xaml')) | Should Be $true
+        (Test-Path (Join-Path $script:repoRoot 'gui\HotwmDashboard.ps1')) | Should Be $true
+    }
+
+    It 'HotwmDashboard instantiates headlessly with -NoShow' {
+        $dashScript = Join-Path $script:repoRoot 'gui\HotwmDashboard.ps1'
+        $ui = & $dashScript -NoShow
+        $ui | Should Not Be $null
+        $ui.Window | Should Not Be $null
+        $ui.Controls.BtnTestP1Rumble | Should Not Be $null
+        $ui.Controls.SliderHoldMs | Should Not Be $null
+        $ui.Controls.GridGameProfiles | Should Not Be $null
+    }
+}
+
