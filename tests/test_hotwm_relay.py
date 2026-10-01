@@ -101,6 +101,30 @@ class TestHotwmRelay(unittest.IsolatedAsyncioTestCase):
             server.close()
             await server.wait_closed()
 
+    def test_parse_show_players(self):
+        self.assertEqual(hr.parse_show_players("SHOW_PLAYERS 1=2 2=1"), [(1, 2), (2, 1)])
+        self.assertIsNone(hr.parse_show_players("SHOW_PLAYERS 1=x"))
+        self.assertIsNone(hr.parse_show_players("SHOW_PLAYERS 5=1"))
+        self.assertIsNone(hr.parse_show_players("SHOW_PLAYERS"))
+
+    async def test_show_players_rumbles_and_blinks_the_player_each_wiimote_should_be(self):
+        class Sink:
+            def __init__(self): self.data = b""
+            def write(self, d): self.data += d
+        sink = Sink()
+        hr.CLIENTS.add(sink)
+        try:
+            await hr.trigger_show_players([(1, 2), (2, 1)], cycles=2, on_s=0, off_s=0)
+        finally:
+            hr.CLIENTS.discard(sink)
+        lines = sink.data.decode().split("\r\n")
+        self.assertEqual(lines[0], "mame_start = TeknoParrot FFB")
+        self.assertIn("1pRecoil = 1", lines)
+        self.assertIn("P1_Led2 = 1", lines)   # Gunmote's Wiimote 1 should be player 2
+        self.assertIn("P2_Led1 = 1", lines)
+        self.assertEqual(lines.count("1pRecoil = 1"), 2)
+        self.assertEqual([l for l in lines if l][-1], "mame_stop = 1")
+
 
 if __name__ == "__main__":
     unittest.main()
