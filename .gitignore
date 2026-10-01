@@ -48,3 +48,5 @@ desktop.ini
 *.swp
 *.bak
 *~
+.omc/
+

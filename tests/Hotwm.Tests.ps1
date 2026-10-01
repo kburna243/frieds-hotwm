@@ -59,7 +59,7 @@ Describe 'hotwm — Python Relay Selftest' {
     }
 }
 
-Describe 'hotwm — Kit API Contract Compatibility' {
+Describe 'hotwm — Kit API Live Contract (Cabinets with RetroCabinetKit)' {
     BeforeAll {
         if (-not $script:repoRoot -or -not (Test-Path (Join-Path $script:repoRoot 'config\hotw.json'))) {
             $script:repoRoot = if ($PSScriptRoot) { Split-Path -Parent $PSScriptRoot } else { (Get-Location).Path }
@@ -67,6 +67,9 @@ Describe 'hotwm — Kit API Contract Compatibility' {
                 $script:repoRoot = (Get-Location).Path
             }
         }
+        . (Join-Path $script:repoRoot 'src\KitClient.ps1')
+        $script:realKit = Get-HotwmKitRoot
+        $script:kitAvailable = [bool]($script:realKit -and (Test-Path (Join-Path $script:realKit 'api\Invoke-KitApi.ps1')) -and ($script:realKit -notlike '*fake-kit*'))
     }
 
     It 'contract snapshot kit-contract-v1.json exists and targets ApiVersion 1.5 (Kit 1.3.0)' {
@@ -77,37 +80,81 @@ Describe 'hotwm — Kit API Contract Compatibility' {
         $contract.TargetKit.KitVersion | Should Be '1.3.0'
         $hookOp = $contract.RequiredOperations | Where-Object { $_.Name -eq 'outputs.wiimote_hook' }
         $hookOp | Should Not Be $null
+        $hookOp.Parameters | Should Not Be $null
     }
 
-    It 'Test-ContractDrift passes against local Kit when present' {
+    It 'Test-ContractDrift passes against local Kit when present' -Skip:(-not $script:kitAvailable) {
+        $driftScript = Join-Path $script:repoRoot 'tools\Test-ContractDrift.ps1'
+        $p = Start-Process -FilePath 'powershell.exe' -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$driftScript`"" -NoNewWindow -PassThru -Wait
+        $p.ExitCode | Should Be 0
+    }
+
+    It 'Get-HotwmInputProfiles queries Kit v1.3.0 controllers.input_profiles successfully' -Skip:(-not $script:kitAvailable) {
+        $res = Get-HotwmInputProfiles
+        $res | Should Not Be $null
+        $res.Success | Should Be $true
+        $res.Data.Profiles | Should Not Be $null
+        ($res.Data.Profiles | Where-Object { $_.Name -eq 'ipac2-default' }) | Should Not Be $null
+    }
+
+    It 'Get-HotwmOutputSafety queries Kit operation outputs.verify_safety successfully' -Skip:(-not $script:kitAvailable) {
+        $res = Get-HotwmOutputSafety
+        $res | Should Not Be $null
+        $res.Success | Should Be $true
+        $res.Data.SolenoidGuard | Should Not Be $null
+        $res.Data.DetectedOutputs | Should Not Be $null
+    }
+}
+
+Describe 'hotwm — KitClient against Fake-Kit (Offline / CI)' {
+    BeforeAll {
+        if (-not $script:repoRoot -or -not (Test-Path (Join-Path $script:repoRoot 'config\hotw.json'))) {
+            $script:repoRoot = if ($PSScriptRoot) { Split-Path -Parent $PSScriptRoot } else { (Get-Location).Path }
+            if (-not (Test-Path (Join-Path $script:repoRoot 'config\hotw.json'))) {
+                $script:repoRoot = (Get-Location).Path
+            }
+        }
+        $script:origEnvKit = $env:RETRO_CABINET_KIT_ROOT
+        $env:RETRO_CABINET_KIT_ROOT = Join-Path $script:repoRoot 'tests\fixtures\fake-kit'
         . (Join-Path $script:repoRoot 'src\KitClient.ps1')
-        if (Test-HotwmKitAvailable) {
-            $driftScript = Join-Path $script:repoRoot 'tools\Test-ContractDrift.ps1'
-            $p = Start-Process -FilePath 'powershell.exe' -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$driftScript`"" -NoNewWindow -PassThru -Wait
-            $p.ExitCode | Should Be 0
+    }
+
+    AfterAll {
+        if ($script:origEnvKit) {
+            $env:RETRO_CABINET_KIT_ROOT = $script:origEnvKit
+        } else {
+            Remove-Item env:RETRO_CABINET_KIT_ROOT -ErrorAction SilentlyContinue
         }
     }
 
-    It 'Get-HotwmInputProfiles queries Kit v1.3.0 controllers.input_profiles successfully' {
-        . (Join-Path $script:repoRoot 'src\KitClient.ps1')
-        if (Test-HotwmKitAvailable) {
-            $res = Get-HotwmInputProfiles
-            $res | Should Not Be $null
-            $res.Success | Should Be $true
-            $res.Data.Profiles | Should Not Be $null
-            ($res.Data.Profiles | Where-Object { $_.Name -eq 'ipac2-default' }) | Should Not Be $null
-        }
+    It 'KitClient correctly detects and communicates with Fake-Kit' {
+        (Test-HotwmKitAvailable) | Should Be $true
+        $root = Get-HotwmKitRoot
+        $root | Should Match 'fake-kit'
     }
 
-    It 'Get-HotwmOutputSafety queries Kit operation outputs.verify_safety successfully' {
-        . (Join-Path $script:repoRoot 'src\KitClient.ps1')
-        if (Test-HotwmKitAvailable) {
-            $res = Get-HotwmOutputSafety
-            $res | Should Not Be $null
-            $res.Success | Should Be $true
-            $res.Data.SolenoidGuard | Should Not Be $null
-            $res.Data.DetectedOutputs | Should Not Be $null
-        }
+    It 'Get-HotwmSystemStatus returns parsed output hook data from Fake-Kit' {
+        $res = Get-HotwmSystemStatus
+        $res | Should Not Be $null
+        $res.Success | Should Be $true
+        $res.Data.WiimoteDetected | Should Be $true
+        $res.Data.RelayInstalled | Should Be $true
+    }
+
+    It 'Get-HotwmInputProfiles returns input profiles from Fake-Kit' {
+        $res = Get-HotwmInputProfiles
+        $res | Should Not Be $null
+        $res.Success | Should Be $true
+        $res.Data.Profiles | Should Not Be $null
+        $res.Data.Profiles[0].Name | Should Be 'ipac2-default'
+    }
+
+    It 'Get-HotwmOutputSafety returns safety data from Fake-Kit' {
+        $res = Get-HotwmOutputSafety
+        $res | Should Not Be $null
+        $res.Success | Should Be $true
+        $res.Data.SolenoidGuard.Ok | Should Be $true
+        ($res.Data.DetectedOutputs -contains 'GunmoteOutput') | Should Be $true
     }
 }
 

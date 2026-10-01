@@ -55,17 +55,56 @@ if ($liveMajor -ne $pinnedMajor) {
     exit 1
 }
 
-# 3. Check Required Operations
-$liveOpList = @($liveOpsRes.Data.Operations | ForEach-Object { $_.Name })
+# 3. Check Operations (Required & Supported)
 $drifted = $false
+$liveOps = @{}
+foreach ($op in $liveOpsRes.Data.Operations) {
+    $liveOps[$op.Name] = $op
+}
 
-foreach ($req in $contract.RequiredOperations) {
-    if ($req.Name -notin $liveOpList) {
-        Write-Error "DRIFT: Required operation '$($req.Name)' is missing from live Kit!"
+$allOpsToCheck = @()
+if ($contract.RequiredOperations) { $allOpsToCheck += @($contract.RequiredOperations) }
+if ($contract.SupportedOperations) { $allOpsToCheck += @($contract.SupportedOperations) }
+
+foreach ($expectedOp in $allOpsToCheck) {
+    $opName = $expectedOp.Name
+    if (-not $liveOps.ContainsKey($opName)) {
+        Write-Error "DRIFT: Operation '$opName' is missing from live Kit!"
         $drifted = $true
-    } else {
-        Write-Host "  [OK] Operation '$($req.Name)' is available." -ForegroundColor Green
+        continue
     }
+
+    $liveOp = $liveOps[$opName]
+
+    # Validate Kind
+    if ($expectedOp.Kind -and $liveOp.Kind -ne $expectedOp.Kind) {
+        Write-Error "DRIFT: Operation '$opName' Kind mismatch! Expected='$($expectedOp.Kind)', Live='$($liveOp.Kind)'"
+        $drifted = $true
+    }
+
+    # Validate Parameters
+    if ($expectedOp.Parameters) {
+        $liveParams = @{}
+        if ($liveOp.Parameters) {
+            foreach ($lp in $liveOp.Parameters) {
+                $liveParams[$lp.Name] = $lp
+            }
+        }
+        foreach ($ep in $expectedOp.Parameters) {
+            if (-not $liveParams.ContainsKey($ep.Name)) {
+                Write-Error "DRIFT: Parameter '$($ep.Name)' missing from operation '$opName'!"
+                $drifted = $true
+            } else {
+                $lp = $liveParams[$ep.Name]
+                if ($ep.Mandatory -ne $lp.Mandatory) {
+                    Write-Error "DRIFT: Parameter '$($ep.Name)' in operation '$opName' Mandatory mismatch! Expected=$($ep.Mandatory), Live=$($lp.Mandatory)"
+                    $drifted = $true
+                }
+            }
+        }
+    }
+
+    Write-Host "  [OK] Operation '$opName' ($($liveOp.Kind)) matches contract parameters." -ForegroundColor Green
 }
 
 # 4. Check outputs.wiimote_hook result fields

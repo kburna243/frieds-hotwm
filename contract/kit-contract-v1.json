@@ -1,5 +1,5 @@
 {
-  "ContractVersion": "1.1",
+  "ContractVersion": "1.2",
   "TargetKit": {
     "ApiVersion": "1.5",
     "MinApiVersion": "1.4",
@@ -46,17 +46,48 @@
     {
       "Name": "controllers.input_profiles",
       "Kind": "Read",
-      "Description": "Input matrix button layouts across the cabinet."
+      "Description": "List the input profiles (one button layout for the whole cabinet), or one profile with its mapping.",
+      "Parameters": [
+        {
+          "Name": "Name",
+          "Type": "String",
+          "Mandatory": false
+        }
+      ]
     },
     {
       "Name": "controllers.input_apply",
       "Kind": "Change",
-      "Description": "Apply input profile as MAME ctrlr configuration."
+      "Description": "Write an input profile as a MAME ctrlr file of its own (never a hand-made one); the plan names the RetroBat settings that load it.",
+      "Parameters": [
+        {
+          "Name": "Profile",
+          "Type": "String",
+          "Mandatory": true
+        },
+        {
+          "Name": "CtrlrName",
+          "Type": "String",
+          "Mandatory": false
+        },
+        {
+          "Name": "RetroBatRoot",
+          "Type": "String",
+          "Mandatory": false
+        }
+      ]
     },
     {
       "Name": "outputs.verify_safety",
       "Kind": "Read",
-      "Description": "Verify output middleware safety (port conflicts on 8000, double consumers, solenoid guard)."
+      "Description": "Verify output safety: solenoid limits, port conflicts, double output consumers.",
+      "Parameters": [
+        {
+          "Name": "RetroBatRoot",
+          "Type": "String",
+          "Mandatory": false
+        }
+      ]
     }
   ]
 }

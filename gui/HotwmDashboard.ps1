@@ -402,7 +402,7 @@ if ($controls.BtnQueryInputMatrix) {
             $res = Get-HotwmInputProfiles
             if ($res.Success -and $res.Data.Profiles) {
                 $pList = ($res.Data.Profiles | ForEach-Object { "• $($_.Name): $($_.Description) ($($_.Intents) intents)" }) -join "`n`n"
-                [System.Windows.MessageBox]::Show("Fried's Retrogaming Kit v1.3.0 Input Matrix Profiles:`n`n$pList`n`nProfile 'ipac2-default' maps 26 arcade inputs and links MAME mouse buttons (MOUSE1_BUTTON1-3) to Lightgun/Wiimote triggers!", "Cabinet Input Matrix (API 1.5)", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Information)
+                [System.Windows.MessageBox]::Show("Fried's Retrogaming Kit v1.3.0 Input Matrix Profiles:`n`n$pList`n`nProfil 'ipac2-default' stammt aus der I-PAC 2 Werksbelegung (Keyboard + Trackball/Maus).`nGunmote-Wiimotes melden sich als XInput-Gamepad (MAME sieht JOYCODE, z.B. P1_BUTTON1 = KEY_LCONTROL + JOY1_BUTTON2).", "Cabinet Input Matrix (API 1.5)", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Information)
             } else {
                 [System.Windows.MessageBox]::Show("No input profiles found or Kit API returned: $($res.Message)", "Cabinet Input Matrix", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Warning)
             }
