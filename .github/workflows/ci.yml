@@ -26,4 +26,4 @@ jobs:
 
       - name: Run PowerShell Pester Tests
         shell: powershell
-        run: Invoke-Pester .\tests\Hotwm.Tests.ps1 -EnableExit
+        run: .\tests\Run-Tests.ps1
