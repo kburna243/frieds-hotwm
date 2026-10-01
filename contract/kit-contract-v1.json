@@ -1,0 +1,44 @@
+{
+  "ContractVersion": "1.0",
+  "TargetKit": {
+    "ApiVersion": "1.4",
+    "KitVersion": "1.2.0",
+    "Commit": "e6b53b7"
+  },
+  "RequiredOperations": [
+    {
+      "Name": "outputs.wiimote_hook",
+      "Kind": "Read",
+      "Description": "Inspect the Wiimote lightgun output chain: DolphinBar detection, Gunmote status, recoil relay, rumble safety thresholds, double-consumer warnings.",
+      "Parameters": [
+        {
+          "Name": "RetroBatRoot",
+          "Type": "String",
+          "Mandatory": false
+        }
+      ],
+      "ExpectedResultFields": [
+        "Ok",
+        "WiimoteDetected",
+        "GunmoteInstalled",
+        "GunmoteRunning",
+        "ViGEmBusInstalled",
+        "PythonInstalled",
+        "RelayInstalled",
+        "TeknoParrotFound",
+        "DemulShooterFound",
+        "MameOutputWindows",
+        "PortConflicts",
+        "DoubleConsumers",
+        "Warnings",
+        "Recommendation"
+      ]
+    },
+    {
+      "Name": "components",
+      "Kind": "Read",
+      "Description": "Detected components: Windows, RetroBat, Gunmote, ViGEmBus, DolphinBar, Steam, pinball build, PinballY.",
+      "Parameters": []
+    }
+  ]
+}

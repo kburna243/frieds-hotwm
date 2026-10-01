@@ -58,3 +58,33 @@ Describe 'hotwm — Python Relay Selftest' {
         $p.ExitCode | Should Be 0
     }
 }
+
+Describe 'hotwm — Kit API Contract Compatibility' {
+    BeforeAll {
+        if (-not $script:repoRoot -or -not (Test-Path (Join-Path $script:repoRoot 'config\hotw.json'))) {
+            $script:repoRoot = if ($PSScriptRoot) { Split-Path -Parent $PSScriptRoot } else { (Get-Location).Path }
+            if (-not (Test-Path (Join-Path $script:repoRoot 'config\hotw.json'))) {
+                $script:repoRoot = (Get-Location).Path
+            }
+        }
+    }
+
+    It 'contract snapshot kit-contract-v1.json exists and targets ApiVersion 1.4' {
+        $cPath = Join-Path $script:repoRoot 'contract\kit-contract-v1.json'
+        (Test-Path $cPath) | Should Be $true
+        $contract = Get-Content -LiteralPath $cPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $contract.TargetKit.ApiVersion | Should Be '1.4'
+        $contract.TargetKit.KitVersion | Should Be '1.2.0'
+        $hookOp = $contract.RequiredOperations | Where-Object { $_.Name -eq 'outputs.wiimote_hook' }
+        $hookOp | Should Not Be $null
+    }
+
+    It 'Test-ContractDrift passes against local Kit when present' {
+        . (Join-Path $script:repoRoot 'src\KitClient.ps1')
+        if (Test-HotwmKitAvailable) {
+            $driftScript = Join-Path $script:repoRoot 'tools\Test-ContractDrift.ps1'
+            $p = Start-Process -FilePath 'powershell.exe' -ArgumentList "-NoProfile -ExecutionPolicy Bypass -File `"$driftScript`"" -NoNewWindow -PassThru -Wait
+            $p.ExitCode | Should Be 0
+        }
+    }
+}
