@@ -1,0 +1,50 @@
+# Projekt-Standard .gitignore (P1 / C1)
+# Verhindert versehentliches Committen von temporaeren Daten, Artefakten und Secrets
+
+# Lokale Workspace-Artefakte & Assets (liegen auf Projekt-Ebene)
+../artifacts/
+../assets/
+artifacts/
+assets/
+
+# Dependencies
+node_modules/
+vendor/
+.venv/
+env/
+__pycache__/
+*.pyc
+
+# Environment & Secrets (HARTE REGEL: NIEMALS COMMITTEN)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+id_rsa*
+id_ed25519*
+
+# Build-Artefakte
+dist/
+build/
+out/
+.next/
+.turbo/
+*.tar
+*.tar.gz
+*.zip
+*.bundle
+
+# OS & Editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.bak
+*~
