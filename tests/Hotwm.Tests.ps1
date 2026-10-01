@@ -1,8 +1,16 @@
-﻿$repoRoot = Split-Path -Parent $PSScriptRoot
+﻿$script:repoRoot = if ($PSScriptRoot) { Split-Path -Parent $PSScriptRoot } else { (Get-Location).Path }
 
 Describe 'hotwm — Code & Schema Integrity' {
+    BeforeAll {
+        if (-not $script:repoRoot -or -not (Test-Path (Join-Path $script:repoRoot 'config\hotw.json'))) {
+            $script:repoRoot = if ($PSScriptRoot) { Split-Path -Parent $PSScriptRoot } else { (Get-Location).Path }
+            if (-not (Test-Path (Join-Path $script:repoRoot 'config\hotw.json'))) {
+                $script:repoRoot = (Get-Location).Path
+            }
+        }
+    }
     It 'hotw.json exists and is valid JSON with global and games sections' {
-        $cfgPath = Join-Path $repoRoot 'config\hotw.json'
+        $cfgPath = Join-Path $script:repoRoot 'config\hotw.json'
         (Test-Path $cfgPath) | Should Be $true
         $content = Get-Content -LiteralPath $cfgPath -Raw -Encoding UTF8 | ConvertFrom-Json
         $content.global.hold_ms | Should Be 150
@@ -11,7 +19,7 @@ Describe 'hotwm — Code & Schema Integrity' {
     }
 
     It 'all PowerShell scripts have valid syntax' {
-        $scripts = Get-ChildItem -LiteralPath $repoRoot -Filter '*.ps1' -Recurse
+        $scripts = Get-ChildItem -LiteralPath $script:repoRoot -Filter '*.ps1' -Recurse
         $scripts.Count | Should BeGreaterThan 0
         foreach ($s in $scripts) {
             $tokens = $null; $errors = $null
@@ -21,7 +29,7 @@ Describe 'hotwm — Code & Schema Integrity' {
     }
 
     It 'all PowerShell scripts have UTF-8 BOM' {
-        $scripts = Get-ChildItem -LiteralPath $repoRoot -Filter '*.ps1' -Recurse
+        $scripts = Get-ChildItem -LiteralPath $script:repoRoot -Filter '*.ps1' -Recurse
         foreach ($s in $scripts) {
             $bytes = [System.IO.File]::ReadAllBytes($s.FullName)
             $hasBom = ($bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF)
@@ -31,14 +39,22 @@ Describe 'hotwm — Code & Schema Integrity' {
 }
 
 Describe 'hotwm — Python Relay Selftest' {
+    BeforeAll {
+        if (-not $script:repoRoot -or -not (Test-Path (Join-Path $script:repoRoot 'config\hotw.json'))) {
+            $script:repoRoot = if ($PSScriptRoot) { Split-Path -Parent $PSScriptRoot } else { (Get-Location).Path }
+            if (-not (Test-Path (Join-Path $script:repoRoot 'config\hotw.json'))) {
+                $script:repoRoot = (Get-Location).Path
+            }
+        }
+    }
     It 'python selftest executes and passes with zero exit code' {
-        $relayPy = Join-Path $repoRoot 'src\hotwm_relay.py'
+        $relayPy = Join-Path $script:repoRoot 'src\hotwm_relay.py'
         $p = Start-Process -FilePath "python.exe" -ArgumentList "`"$relayPy`" --selftest" -NoNewWindow -PassThru -Wait
         $p.ExitCode | Should Be 0
     }
 
     It 'python unit tests pass' {
-        $p = Start-Process -FilePath "python.exe" -ArgumentList "-m unittest tests/test_hotwm_relay.py" -WorkingDirectory $repoRoot -NoNewWindow -PassThru -Wait
+        $p = Start-Process -FilePath "python.exe" -ArgumentList "-m unittest tests/test_hotwm_relay.py" -WorkingDirectory $script:repoRoot -NoNewWindow -PassThru -Wait
         $p.ExitCode | Should Be 0
     }
 }
