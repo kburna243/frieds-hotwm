@@ -241,6 +241,35 @@ async def trigger_test_leds(player=1):
         await asyncio.sleep(0.3)
 
 
+def parse_show_players(cmd):
+    """'SHOW_PLAYERS 1=2 2=1' -> [(1, 2), (2, 1)]: Gunmote Wiimote -> the player it should be. None if malformed."""
+    parts = cmd.split()
+    if len(parts) < 2 or parts[0] != "SHOW_PLAYERS":
+        return None
+    pairs = []
+    for p in parts[1:]:
+        wii, _, player = p.partition("=")
+        if not (wii.isdigit() and player.isdigit() and 1 <= int(wii) <= 4 and 1 <= int(player) <= 4):
+            return None
+        pairs.append((int(wii), int(player)))
+    return pairs
+
+
+async def trigger_show_players(pairs, cycles=3, on_s=0.4, off_s=0.4):
+    """Tells each Wiimote which player it should be: it rumbles and blinks LED <player>, three times.
+    Used when the Wiimotes connected in the wrong order (Gunmote numbers them by connection). The lines go through
+    Gunmote's shared "TeknoParrot FFB" ini (<n>pRecoil -> motor, P<n>_Led<k> -> LED k), loaded by mame_start and
+    released by mame_stop, so this runs before a game sends its own mame_start."""
+    broadcast(b"mame_start = TeknoParrot FFB\r\n")
+    await asyncio.sleep(0.3)
+    for _ in range(cycles):
+        broadcast(b"".join(b"%dpRecoil = 1\r\nP%d_Led%d = 1\r\n" % (w, w, p) for w, p in pairs))
+        await asyncio.sleep(on_s)
+        broadcast(b"".join(b"%dpRecoil = 0\r\nP%d_Led%d = 0\r\n" % (w, w, p) for w, p in pairs))
+        await asyncio.sleep(off_s)
+    broadcast(b"mame_stop = 1\r\n")
+
+
 async def pump_up(reader, writer, relay):
     buf = b""
     while data := await reader.read(4096):
@@ -265,6 +294,10 @@ async def client_reader_loop(c_reader, c_writer, hold_ms):
                 asyncio.create_task(trigger_test_leds(player=1))
             elif cmd in ("CMD_TEST_P2_LEDS", "TEST_P2_LEDS"):
                 asyncio.create_task(trigger_test_leds(player=2))
+            elif cmd.startswith("SHOW_PLAYERS"):
+                pairs = parse_show_players(cmd)
+                if pairs:
+                    asyncio.create_task(trigger_show_players(pairs))
             elif cmd == "PING":
                 c_writer.write(b"PONG\r\n")
                 await c_writer.drain()
