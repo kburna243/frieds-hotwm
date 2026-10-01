@@ -316,6 +316,7 @@ def wm_source(loop, feed):
     ]
     u32.CreateWindowExW.restype = W.HWND
     k32.OpenProcess.restype = W.HANDLE
+    k32.GetModuleHandleW.restype = W.HMODULE  # default c_int truncates pythonw's 0x7ff7... base -> CreateWindowExW fails
 
     class WNDCLASSW(ctypes.Structure):
         _fields_ = [
@@ -388,6 +389,10 @@ def wm_source(loop, feed):
     wc = WNDCLASSW(lpfnWndProc=proc, hInstance=k32.GetModuleHandleW(None), lpszClassName="HotwmMameClient")
     u32.RegisterClassW(ctypes.byref(wc))
     st["hwnd"] = u32.CreateWindowExW(0, wc.lpszClassName, "hotwm-recoil", 0x80000000, 0, 0, 0, 0, None, None, wc.hInstance, None)
+    # The relay task runs elevated, MAME does not: without this UIPI drops every message MAME posts to us.
+    u32.ChangeWindowMessageFilterEx.argtypes = [W.HWND, W.UINT, W.DWORD, W.LPVOID]
+    for m in (*reg.values(), 0x004A):
+        u32.ChangeWindowMessageFilterEx(st["hwnd"], m, 1, None)  # MSGFLT_ALLOW
     u32.SetTimer(st["hwnd"], 1, 2000, None)
     msg = W.MSG()
     while u32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
@@ -526,8 +531,15 @@ async def main():
             WM_START[0] = None
         wm.feed(line)
 
-    # Start Win32 message loop in background thread
-    threading.Thread(target=wm_source, args=(loop, wm_feed), daemon=True).start()
+    # Start Win32 message loop in background thread; under pythonw a crash there would otherwise vanish silently
+    def wm_thread():
+        try:
+            wm_source(loop, wm_feed)
+        except BaseException:
+            import traceback
+            with open(TRACE_LOG, "a", encoding="utf-8") as f:
+                f.write(f"wm_source crashed:\n{traceback.format_exc()}\n")
+    threading.Thread(target=wm_thread, daemon=True).start()
     server = await serve(DEFAULT_LISTEN_PORT, DEFAULT_UPSTREAM_PORT, GLOBAL_CONFIG.hold_ms)
     print("hotwm relay is active and ready for Gunmote connections.")
 
