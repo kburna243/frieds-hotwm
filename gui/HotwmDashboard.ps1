@@ -236,9 +236,9 @@ function Update-DashboardStatus {
         if ($kitAvail) {
             $kitRoot = Get-HotwmKitRoot
             $controls.DotKit.Fill = $brushGreen
-            $controls.TextKitBadge.Text = "CONNECTED"
+            $controls.TextKitBadge.Text = "CONNECTED (v1.3)"
             $controls.TextKitBadge.Foreground = $brushGreen
-            $controls.TextKitDetail.Text = "Kit available: $kitRoot"
+            $controls.TextKitDetail.Text = "Kit v1.3.0 (API 1.5): outputs.wiimote_hook + Input Matrix"
         } else {
             $controls.DotKit.Fill = $brushGray
             $controls.TextKitBadge.Text = "STANDALONE"
@@ -394,6 +394,23 @@ $controls.BtnQueryKit.Add_Click({
         [System.Windows.MessageBox]::Show("Kit client not loaded or Kit not available.", "Retro Cabinet Kit", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Information)
     }
 })
+
+# Query Cabinet Input Matrix (Kit v1.3 / API 1.5)
+if ($controls.BtnQueryInputMatrix) {
+    $controls.BtnQueryInputMatrix.Add_Click({
+        if (Get-Command Get-HotwmInputProfiles -ErrorAction SilentlyContinue) {
+            $res = Get-HotwmInputProfiles
+            if ($res.Success -and $res.Data.Profiles) {
+                $pList = ($res.Data.Profiles | ForEach-Object { "• $($_.Name): $($_.Description) ($($_.Intents) intents)" }) -join "`n`n"
+                [System.Windows.MessageBox]::Show("Fried's Retrogaming Kit v1.3.0 Input Matrix Profiles:`n`n$pList`n`nProfile 'ipac2-default' maps 26 arcade inputs and links MAME mouse buttons (MOUSE1_BUTTON1-3) to Lightgun/Wiimote triggers!", "Cabinet Input Matrix (API 1.5)", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Information)
+            } else {
+                [System.Windows.MessageBox]::Show("No input profiles found or Kit API returned: $($res.Message)", "Cabinet Input Matrix", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Warning)
+            }
+        } else {
+            [System.Windows.MessageBox]::Show("Kit client or operation controllers.input_profiles not available.", "Cabinet Input Matrix", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Information)
+        }
+    })
+}
 
 # Haptic Tests
 $controls.BtnTestP1Rumble.Add_Click({

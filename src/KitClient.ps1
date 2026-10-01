@@ -50,7 +50,8 @@ function Invoke-HotwmKitApi {
         [Parameter(Mandatory)]
         [string]$Operation,
 
-        [hashtable]$Parameters = @{}
+        [hashtable]$Parameters = @{},
+        [switch]$Apply
     )
 
     $kit = Get-HotwmKitRoot
@@ -73,30 +74,32 @@ function Invoke-HotwmKitApi {
         }
     }
 
-    $argList = @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", "`"$apiScript`"", "-Operation", $Operation)
-    foreach ($k in $Parameters.Keys) {
-        $argList += "-$k"
-        $argList += "`"$($Parameters[$k])`""
+    $splat = @{
+        Operation = $Operation
     }
-
-    $pwsh = Join-Path $env:SystemRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
-    $raw = & $pwsh $argList
-    if (-not $raw) {
-        return [pscustomobject]@{
-            Success    = $false
-            Message    = "No response returned from Kit API."
-            ApiVersion = $null
-            Data       = $null
-        }
+    if ($Parameters -and $Parameters.Count -gt 0) {
+        $splat['ParametersJson'] = ($Parameters | ConvertTo-Json -Compress)
+    }
+    if ($Apply) {
+        $splat['Apply'] = $true
     }
 
     try {
+        $raw = & $apiScript @splat
+        if (-not $raw) {
+            return [pscustomobject]@{
+                Success    = $false
+                Message    = "No response returned from Kit API."
+                ApiVersion = $null
+                Data       = $null
+            }
+        }
         $json = ($raw -join "`n")
         return ($json | ConvertFrom-Json)
     } catch {
         return [pscustomobject]@{
             Success    = $false
-            Message    = "Failed to parse JSON response from Kit API: $($_.Exception.Message)"
+            Message    = "Failed calling Kit API: $($_.Exception.Message)"
             ApiVersion = $null
             Data       = $null
         }
@@ -117,3 +120,35 @@ function Get-HotwmSystemStatus {
     $res = Invoke-HotwmKitApi -Operation "outputs.wiimote_hook" -Parameters $params
     return $res
 }
+
+function Get-HotwmInputProfiles {
+    <#
+    .SYNOPSIS
+        Queries available arcade button input profiles via Kit operation 'controllers.input_profiles' (Kit v1.3.0 / API 1.5).
+    #>
+    [CmdletBinding()]
+    param()
+
+    return Invoke-HotwmKitApi -Operation "controllers.input_profiles"
+}
+
+function Set-HotwmInputProfile {
+    <#
+    .SYNOPSIS
+        Applies an arcade input profile (e.g. 'ipac2-default') via Kit operation 'controllers.input_apply' (Kit v1.3.0 / API 1.5).
+    #>
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$Profile,
+
+        [string]$RetroBatRoot = "",
+        [switch]$Apply
+    )
+
+    $params = @{ Profile = $Profile }
+    if ($RetroBatRoot) { $params['RetroBatRoot'] = $RetroBatRoot }
+
+    return Invoke-HotwmKitApi -Operation "controllers.input_apply" -Parameters $params -Apply:$Apply
+}
+

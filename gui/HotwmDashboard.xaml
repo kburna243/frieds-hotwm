@@ -240,6 +240,7 @@
                                 <Button x:Name="BtnInstallTask" Content="⚙ Install Windows Task (Autostart)" Margin="0,0,10,6"/>
                                 <Button x:Name="BtnUninstallTask" Content="✕ Remove Windows Task" Margin="0,0,10,6"/>
                                 <Button x:Name="BtnQueryKit" Content="🔍 Query Kit Health" Style="{StaticResource AccentButton}" Margin="0,0,10,6"/>
+                                <Button x:Name="BtnQueryInputMatrix" Content="🎮 Cabinet Input Matrix (Kit v1.3)" Style="{StaticResource AccentButton}" Margin="0,0,10,6"/>
                             </WrapPanel>
                         </GroupBox>
 
