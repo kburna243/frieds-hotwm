@@ -52,6 +52,9 @@ foreach ($m in [regex]::Matches($xaml, 'x:Name="([A-Za-z0-9_]+)"')) {
     if ($element) { $controls[$name] = $element }
 }
 
+# hotwm's own version: the VERSION file is the one source (the package builder reads it too)
+$controls.TextVersion.Text = 'v' + $(try { ([IO.File]::ReadAllText((Join-Path $repoDir 'VERSION'))).Trim() } catch { '?' })
+
 # Helper: Brushes
 $brushGreen  = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#00E676")
 $brushRed    = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#FF5252")

@@ -93,7 +93,7 @@
                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock Text="⚡ HOOK OF THE WIIMOTE" FontSize="18" FontWeight="Bold" Foreground="#00E5FF"/>
                         <Border Background="#25293E" CornerRadius="4" Margin="12,0,0,0" Padding="6,2">
-                            <TextBlock Text="v1.0.0" FontSize="11" Foreground="#82AAFF" FontWeight="SemiBold"/>
+                            <TextBlock x:Name="TextVersion" FontSize="11" Foreground="#82AAFF" FontWeight="SemiBold"/>
                         </Border>
                     </StackPanel>
                     <TextBlock Text="Wiimote Recoil Stretcher (16ms → 150ms) • Ammo Drop Kick • LED Health Bar Bridge" FontSize="12" Foreground="#8F93A2" Margin="0,3,0,0"/>
