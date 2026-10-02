@@ -2,12 +2,15 @@
 [CmdletBinding()]
 param(
     [string]$OutDir,
-    [string]$Version = "0.9.0",
+    [string]$Version,
     [switch]$IncludeTests
 )
 
 $ErrorActionPreference = 'Stop'
 $projectRoot = (Resolve-Path "$PSScriptRoot\..").Path
+if ([string]::IsNullOrWhiteSpace($Version)) {
+    $Version = ([IO.File]::ReadAllText((Join-Path $projectRoot "VERSION"))).Trim()
+}
 
 if ([string]::IsNullOrWhiteSpace($OutDir)) {
     $OutDir = Join-Path $projectRoot "dist"
@@ -56,7 +59,7 @@ try {
     }
 
     # Root files
-    $rootFiles = @("Start-HotwmDashboard.bat", "README.md", "README.de.md", "LICENSE")
+    $rootFiles = @("Start-HotwmDashboard.bat", "VERSION", "README.md", "README.de.md", "LICENSE")
     foreach ($f in $rootFiles) {
         $sourcePath = Join-Path $projectRoot $f
         if (Test-Path $sourcePath) {

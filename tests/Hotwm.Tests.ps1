@@ -183,6 +183,7 @@ Describe 'hotwm — GUI Dashboard' {
         $ui.Controls.GridGameProfiles | Should Not Be $null
         $ui.Controls.BtnQueryInputMatrix | Should Not Be $null
         $ui.Controls.BtnVerifyOutputSafety | Should Not Be $null
+        $ui.Controls.TextVersion.Text | Should Be ('v' + (Get-Content -LiteralPath (Join-Path $script:repoRoot 'VERSION') -Raw).Trim())
     }
 
     It 'Live Log Monitor tails the same trace file the relay writes' {
