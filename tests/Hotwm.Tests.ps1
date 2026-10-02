@@ -72,12 +72,12 @@ Describe 'hotwm — Kit API Live Contract (Cabinets with RetroCabinetKit)' {
         $script:kitAvailable = [bool]($script:realKit -and (Test-Path (Join-Path $script:realKit 'api\Invoke-KitApi.ps1')) -and ($script:realKit -notlike '*fake-kit*'))
     }
 
-    It 'contract snapshot kit-contract-v1.json exists and targets ApiVersion 1.5 (Kit 1.3.1)' {
+    It 'contract snapshot kit-contract-v1.json exists and targets ApiVersion 1.6 (Kit 1.4.0)' {
         $cPath = Join-Path $script:repoRoot 'contract\kit-contract-v1.json'
         (Test-Path $cPath) | Should Be $true
         $contract = Get-Content -LiteralPath $cPath -Raw -Encoding UTF8 | ConvertFrom-Json
-        $contract.TargetKit.ApiVersion | Should Be '1.5'
-        $contract.TargetKit.KitVersion | Should Be '1.3.1'
+        $contract.TargetKit.ApiVersion | Should Be '1.6'
+        $contract.TargetKit.KitVersion | Should Be '1.4.0'
         $hookOp = $contract.RequiredOperations | Where-Object { $_.Name -eq 'outputs.wiimote_hook' }
         $hookOp | Should Not Be $null
         $hookOp.Parameters | Should Not Be $null

@@ -130,7 +130,7 @@ Das fertige Paket liegt anschließend unter `dist/frieds-hotwm-v<version>.zip`.
 2. **Phase 2: Konfigurations- & Filter-Engine (`hotw.json`)** ✅ *(Abgeschlossen)*
    - 14 vorkonfigurierte Spieleprofile und Haptik-Toggles (Rumble / LEDs)
    - Sofort-Test-Trigger per Socket (`--test-p1-rumble`, `--test-p1-leds`, `tools\Test-HotwmHaptics.ps1`)
-   - Kit-API-Contract v1.5 Pinned Snapshot & Drift-Prüfung
+   - Kit-API-Contract v1.6 Pinned Snapshot & Drift-Prüfung
 3. **Phase 3: Windows-Automatisierung & Tools** ✅ *(Abgeschlossen)*
    - Hintergrund-Task `Gunmote Recoil Stretch` (`Install-HotwmTask.ps1` / `Uninstall-HotwmTask.ps1`)
    - KitClient für nahtlose Abfrage der Kit-Operation `outputs.wiimote_hook`

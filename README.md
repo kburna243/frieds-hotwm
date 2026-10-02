@@ -130,7 +130,7 @@ The resulting archive will be placed in `dist/frieds-hotwm-v<version>.zip`.
 2. **Phase 2: Configuration & Filter Engine (`hotw.json`)** ✅ *(Completed)*
    - 14 preconfigured game profiles and haptic toggles (rumble / LEDs)
    - Instant socket test triggers (`--test-p1-rumble`, `--test-p1-leds`, `tools\Test-HotwmHaptics.ps1`)
-   - Kit API Contract v1.5 pinned snapshot & automated drift check
+   - Kit API Contract v1.6 pinned snapshot & automated drift check
 3. **Phase 3: Windows Automation & Diagnostics** ✅ *(Completed)*
    - Background task `Gunmote Recoil Stretch` (`Install-HotwmTask.ps1` / `Uninstall-HotwmTask.ps1`)
    - KitClient for querying Kit operation `outputs.wiimote_hook`

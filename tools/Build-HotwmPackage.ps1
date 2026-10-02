@@ -2,7 +2,7 @@
 [CmdletBinding()]
 param(
     [string]$OutDir,
-    [string]$Version = "1.0.0",
+    [string]$Version = "0.9.0",
     [switch]$IncludeTests
 )
 
