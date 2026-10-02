@@ -30,8 +30,8 @@ $now = [DateTime]::UtcNow.ToString("o")
 switch ($Operation) {
     'operations' {
         $result = @{
-            ApiVersion = "1.5"
-            KitVersion = "1.3.1"
+            ApiVersion = "1.6"
+            KitVersion = "1.4.0"
             Operation  = "operations"
             Kind       = "Read"
             Success    = $true
@@ -86,8 +86,8 @@ switch ($Operation) {
     }
     'outputs.wiimote_hook' {
         $result = @{
-            ApiVersion = "1.5"
-            KitVersion = "1.3.1"
+            ApiVersion = "1.6"
+            KitVersion = "1.4.0"
             Operation  = "outputs.wiimote_hook"
             Kind       = "Read"
             Success    = $true
@@ -114,8 +114,8 @@ switch ($Operation) {
     }
     'outputs.verify_safety' {
         $result = @{
-            ApiVersion = "1.5"
-            KitVersion = "1.3.1"
+            ApiVersion = "1.6"
+            KitVersion = "1.4.0"
             Operation  = "outputs.verify_safety"
             Kind       = "Read"
             Success    = $true
@@ -134,8 +134,8 @@ switch ($Operation) {
     }
     'controllers.input_profiles' {
         $result = @{
-            ApiVersion = "1.5"
-            KitVersion = "1.3.1"
+            ApiVersion = "1.6"
+            KitVersion = "1.4.0"
             Operation  = "controllers.input_profiles"
             Kind       = "Read"
             Success    = $true
@@ -164,8 +164,8 @@ switch ($Operation) {
         $prof = if ($params.ContainsKey('Profile')) { $params['Profile'] } else { 'ipac2-default' }
         $status = if ($Apply) { "Done" } else { "WhatIf" }
         $result = @{
-            ApiVersion = "1.5"
-            KitVersion = "1.3.1"
+            ApiVersion = "1.6"
+            KitVersion = "1.4.0"
             Operation  = "controllers.input_apply"
             Kind       = "Change"
             Success    = $true
@@ -181,8 +181,8 @@ switch ($Operation) {
     }
     'components' {
         $result = @{
-            ApiVersion = "1.5"
-            KitVersion = "1.3.1"
+            ApiVersion = "1.6"
+            KitVersion = "1.4.0"
             Operation  = "components"
             Kind       = "Read"
             Success    = $true
@@ -200,8 +200,8 @@ switch ($Operation) {
     }
     default {
         $result = @{
-            ApiVersion = "1.5"
-            KitVersion = "1.3.1"
+            ApiVersion = "1.6"
+            KitVersion = "1.4.0"
             Operation  = $Operation
             Kind       = "Read"
             Success    = $true
