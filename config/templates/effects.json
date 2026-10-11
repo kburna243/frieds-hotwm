@@ -1,0 +1,33 @@
+{
+  "SchemaVersion": 1,
+  "Kind": "effects",
+  "Templates": [
+    {
+      "Id": "balanced",
+      "Name": "Balanced",
+      "Description": "Current hotwm defaults for recoil and life LEDs.",
+      "Settings": {
+        "global": { "hold_ms": 150, "ammo_drop_shot": true, "led_mode": "life_bar", "trace_enabled": false },
+        "games": {}
+      }
+    },
+    {
+      "Id": "short-pulse",
+      "Name": "Short pulse",
+      "Description": "A shorter supported rumble hold with life LEDs enabled.",
+      "Settings": {
+        "global": { "hold_ms": 100, "ammo_drop_shot": true, "led_mode": "life_bar", "trace_enabled": false },
+        "games": {}
+      }
+    },
+    {
+      "Id": "quiet",
+      "Name": "Quiet",
+      "Description": "Disables ammo-drop pulses and life LEDs while retaining game rumble settings.",
+      "Settings": {
+        "global": { "hold_ms": 150, "ammo_drop_shot": false, "led_mode": "none", "trace_enabled": false },
+        "games": {}
+      }
+    }
+  ]
+}
