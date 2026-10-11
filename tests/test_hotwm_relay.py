@@ -67,15 +67,16 @@ class TestHotwmRelay(unittest.IsolatedAsyncioTestCase):
         relay.close()
 
     async def test_config_manager_game_filters(self):
-        with tempfile.NamedTemporaryFile("w+", delete=False, suffix=".json") as f:
+        with tempfile.NamedTemporaryFile("w+", delete=False, suffix=".json", encoding="utf-8") as f:
             cfg = {
                 "global": {"hold_ms": 150, "ammo_drop_shot": True},
                 "games": {
                     "DisabledRumble": {"rumble": False, "leds": True},
                     "DisabledLeds": {"rumble": True, "leds": False},
+                    "GameHold": {"hold_ms": 275},
                 },
             }
-            json.dump(cfg, f)
+            f.write("\ufeff" + json.dumps(cfg))
             temp_path = f.name
 
         try:
@@ -86,8 +87,120 @@ class TestHotwmRelay(unittest.IsolatedAsyncioTestCase):
             self.assertTrue(cm.game_settings("DisabledLeds")["rumble"])
             self.assertFalse(cm.game_settings("DisabledLeds")["leds"])
             self.assertTrue(cm.game_settings("UnknownGame")["rumble"])
+            self.assertEqual(cm.game_settings("GameHold")["hold_ms"], 275)
         finally:
             os.remove(temp_path)
+
+    async def test_relay_uses_hot_reloaded_global_hold_and_game_override(self):
+        f = tempfile.NamedTemporaryFile("w+", delete=False, suffix=".json", encoding="utf-8")
+        try:
+            f.write(json.dumps({"global": {"hold_ms": 90}, "games": {"LongGame": {"hold_ms": 260}}}))
+            f.flush()
+            path = Path(f.name)
+            config = hr.ConfigManager(path)
+            out = []
+            relay = hr.Relay(out.append, hold_ms=60, config_manager=config)
+
+            relay.feed(b"1pRecoil = 1\r\n")
+            await asyncio.sleep(0.01)
+            f.seek(0)
+            f.truncate()
+            f.write(json.dumps({"global": {"hold_ms": 220}, "games": {"LongGame": {"hold_ms": 260}}}))
+            f.flush()
+            relay.feed(b"1pRecoil = 0\r\n")
+            await asyncio.sleep(0.14)
+            self.assertNotIn(b"1pRecoil = 0\r\n", out)
+            await asyncio.sleep(0.12)
+            self.assertIn(b"1pRecoil = 0\r\n", out)
+
+            relay.feed(b"mame_start = LongGame\r\n")
+            relay.feed(b"2pRecoil = 1\r\n")
+            await asyncio.sleep(0.01)
+            relay.feed(b"2pRecoil = 0\r\n")
+            await asyncio.sleep(0.14)
+            self.assertNotIn(b"2pRecoil = 0\r\n", out)
+            await asyncio.sleep(0.15)
+            self.assertIn(b"2pRecoil = 0\r\n", out)
+            relay.close()
+        finally:
+            f.close()
+            os.remove(f.name)
+
+    async def test_explicit_relay_hold_is_fallback_when_injected_config_omits_hold(self):
+        f = tempfile.NamedTemporaryFile("w+", delete=False, suffix=".json", encoding="utf-8")
+        try:
+            f.write(json.dumps({"global": {}, "games": {}}))
+            f.flush()
+            config = hr.ConfigManager(f.name)
+            out = []
+            relay = hr.Relay(out.append, hold_ms=60, config_manager=config)
+            relay.feed(b"1pRecoil = 1\r\n")
+            await asyncio.sleep(0.01)
+            relay.feed(b"1pRecoil = 0\r\n")
+            self.assertNotIn(b"1pRecoil = 0\r\n", out)
+            await asyncio.sleep(0.07)
+            self.assertIn(b"1pRecoil = 0\r\n", out)
+            relay.close()
+        finally:
+            f.close()
+            os.remove(f.name)
+
+    async def test_led_mode_none_suppresses_health_mapping_but_not_manual_test(self):
+        f = tempfile.NamedTemporaryFile("w+", delete=False, suffix=".json", encoding="utf-8")
+        try:
+            f.write(json.dumps({"global": {"led_mode": "none"}, "games": {}}))
+            f.flush()
+            path = Path(f.name)
+            config = hr.ConfigManager(path)
+            out = []
+            relay = hr.Relay(out.append, config_manager=config)
+            relay.feed(b"P1_Health = 50\r\n")
+            self.assertEqual(out, [b"P1_Health = 50\r\n"])
+
+            sink = type("Sink", (), {"write": lambda self, data: out.append(data)})()
+            hr.CLIENTS.add(sink)
+            try:
+                await hr.trigger_test_leds(player=1)
+            finally:
+                hr.CLIENTS.discard(sink)
+            self.assertTrue(any(b"P1_Led" in item for item in out))
+            relay.close()
+
+            f.seek(0)
+            f.truncate()
+            f.write(json.dumps({"global": {"led_mode": "life_bar"}, "games": {}}))
+            f.flush()
+            relay2 = hr.Relay(out.append, config_manager=config)
+            before = len(out)
+            relay2.feed(b"P1_Health = 50\r\n")
+            self.assertEqual(len(out), before + 2)
+            self.assertIn(b"P1_Led1", out[-1])
+            relay2.close()
+        finally:
+            f.close()
+            os.remove(f.name)
+
+    async def test_invalid_hot_reload_retains_last_valid_configuration(self):
+        f = tempfile.NamedTemporaryFile("w+", delete=False, suffix=".json", encoding="utf-8")
+        try:
+            f.write(json.dumps({"global": {"hold_ms": 180}, "games": {}}))
+            f.flush()
+            path = Path(f.name)
+            config = hr.ConfigManager(path)
+            self.assertEqual(config.hold_ms, 180)
+            f.seek(0)
+            f.truncate()
+            f.write("{ invalid")
+            f.flush()
+            self.assertEqual(config.hold_ms, 180)
+            f.seek(0)
+            f.truncate()
+            f.write(json.dumps({"global": {"hold_ms": "fast"}, "games": {}}))
+            f.flush()
+            self.assertEqual(config.hold_ms, 180)
+        finally:
+            f.close()
+            os.remove(f.name)
 
     async def test_socket_control_ping_and_triggers(self):
         server = await hr.serve(listen_port=18001, upstream_port=18003, hold_ms=100)
