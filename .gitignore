@@ -19,6 +19,7 @@ vendor/
 env/
 __pycache__/
 *.pyc
+*.log
 
 # Environment & Secrets (HARTE REGEL: NIEMALS COMMITTEN)
 .env
