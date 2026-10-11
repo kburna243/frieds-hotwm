@@ -482,121 +482,38 @@
             <TabItem Header="Effekte">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
                     <StackPanel Margin="14">
-                        <GroupBox Header="Effect profile template">
+                        <GroupBox Header="Effektprofil">
                             <StackPanel Margin="6">
-                                <TextBlock Text="Choose a shipped starting point, copy it into a named user profile, then edit the shared recoil controls and game settings in Recoil &amp; Profiles Tuning." TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,10"/>
+                                <TextBlock Text="Wähle eine Vorlage, kopiere sie in ein eigenes Profil und passe anschließend gemeinsame Rückstoßwerte sowie Spieleinstellungen an." TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,10"/>
                                 <Grid>
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                    <TextBlock Text="Shipped preset:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                    <TextBlock Text="Vorlage:" VerticalAlignment="Center" Margin="0,0,10,0"/>
                                     <ComboBox x:Name="CmbEffectPreset" Grid.Column="1" MinWidth="240" DisplayMemberPath="Name" Padding="6,4"/>
                                 </Grid>
-                                <TextBlock x:Name="TextEffectPresetDescription" Text="Select a preset to see its description." TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,8"/>
+                                <TextBlock x:Name="TextEffectPresetDescription" Text="Wähle eine Vorlage für eine kurze Beschreibung." TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,8"/>
                                 <Grid Margin="0,0,0,8">
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                    <TextBlock Text="User profile name:" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                                    <TextBox x:Name="TextEffectProfileName" Grid.Column="1" Text="My effects" Padding="8,5" Background="{StaticResource BackgroundBrush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}"/>
+                                    <TextBlock Text="Profilname:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                    <TextBox x:Name="TextEffectProfileName" Grid.Column="1" Text="Meine Effekte" Padding="8,5" Background="{StaticResource BackgroundBrush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}"/>
                                 </Grid>
                                 <WrapPanel>
-                                    <Button x:Name="BtnCopyEffectProfile" Content="Copy preset to user profile" Style="{StaticResource AccentButton}" Margin="0,0,8,6"/>
-                                    <Button x:Name="BtnImportEffectProfile" Content="Import user profile…" Margin="0,0,8,6"/>
-                                    <Button x:Name="BtnExportEffectProfile" Content="Export user profile…" Margin="0,0,8,6"/>
-                                    <Button x:Name="BtnOpenEffectTuning" Content="Edit shared effect values" Margin="0,0,8,6"/>
+                                    <Button x:Name="BtnCopyEffectProfile" Content="Vorlage kopieren" Style="{StaticResource AccentButton}" Margin="0,0,8,6"/>
+                                    <Button x:Name="BtnImportEffectProfile" Content="Profil importieren…" Margin="0,0,8,6"/>
+                                    <Button x:Name="BtnExportEffectProfile" Content="Profil exportieren…" Margin="0,0,8,6"/>
+                                    <Button x:Name="BtnOpenEffectTuning" Content="Gemeinsame Werte bearbeiten" Margin="0,0,8,6"/>
                                 </WrapPanel>
-                                <TextBlock x:Name="TextEffectProfileStatus" Text="No user profile copied yet." TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,8"/>
+                                <TextBlock x:Name="TextEffectProfileStatus" Text="Noch kein eigenes Profil erstellt." TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,8"/>
                                 <Border Background="{StaticResource ElevatedBrush}" CornerRadius="4" Padding="10">
                                     <StackPanel>
-                                        <TextBlock Text="Supported scope" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,4"/>
-                                        <TextBlock Text="Effects currently apply to hotwm's global and per-game settings only. They do not define per-player effects or confirm physical hardware output." TextWrapping="Wrap"/>
+                                        <TextBlock Text="Gültiger Umfang" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" Margin="0,0,0,4"/>
+                                        <TextBlock Text="Effekte gelten für gemeinsame und spielspezifische hotw-Einstellungen. Sie legen keine Effekte pro Spieler fest und bestätigen keine Hardwareausgabe." TextWrapping="Wrap"/>
                                     </StackPanel>
                                 </Border>
-                                <Button x:Name="BtnApplyEffectProfile" Content="Apply profile to hotw.json…" Style="{StaticResource SuccessButton}" HorizontalAlignment="Right" Margin="0,10,0,0"/>
+                                <Button x:Name="BtnApplyEffectProfile" Content="Profil prüfen und anwenden…" Style="{StaticResource SuccessButton}" HorizontalAlignment="Right" Margin="0,10,0,0"/>
                             </StackPanel>
                         </GroupBox>
-                        <GroupBox Header="What applying does">
-                            <TextBlock Text="Apply creates one reviewed configuration proposal. The confirmation shows the target and edited values; declining leaves hotw.json unchanged. The shipped template remains read-only." TextWrapping="Wrap" Margin="6" Foreground="{StaticResource MutedTextBrush}"/>
-                        </GroupBox>
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
-            <!-- TAB: SEMANTIC BUTTON PROFILE -->
-            <TabItem Header="Tasten &amp; Gunmote">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="14">
-                        <GroupBox Header="Button intent profile">
-                            <StackPanel Margin="6">
-                                <TextBlock Text="This editable checklist records intended controls such as Shoot or Reload. It does not bind a controller, write a game mapping, or claim hardware input is configured." TextWrapping="Wrap" Foreground="{StaticResource StatusWarningBrush}" Margin="0,0,0,10"/>
-                                <Grid Margin="0,0,0,8">
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                    <TextBlock Text="Shipped template:" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                                    <ComboBox x:Name="CmbButtonTemplate" Grid.Column="1" MinWidth="240" DisplayMemberPath="Name" Padding="6,4"/>
-                                </Grid>
-                                <Grid Margin="0,0,0,8">
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
-                                    <TextBlock Text="User profile name:" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                                    <TextBox x:Name="TextButtonProfileName" Grid.Column="1" Text="My button intents" Padding="8,5" Background="{StaticResource BackgroundBrush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}"/>
-                                </Grid>
-                                <DataGrid x:Name="GridButtonIntents" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
-                                          Background="{StaticResource SurfaceBrush}" RowBackground="{StaticResource ElevatedBrush}" AlternatingRowBackground="{StaticResource ElevatedBrush}"
-                                          Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}" HeadersVisibility="Column"
-                                          GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="{StaticResource BorderBrush}" MaxHeight="260"/>
-                                <WrapPanel Margin="0,10,0,0">
-                                    <Button x:Name="BtnCopyButtonProfile" Content="Copy template to user profile" Style="{StaticResource AccentButton}" Margin="0,0,8,6"/>
-                                    <Button x:Name="BtnImportButtonProfile" Content="Import user profile…" Margin="0,0,8,6"/>
-                                    <Button x:Name="BtnExportButtonProfile" Content="Export user profile…" Margin="0,0,8,6"/>
-                                </WrapPanel>
-                                <TextBlock x:Name="TextButtonProfileStatus" Text="No button profile copied yet." TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,0"/>
-                            </StackPanel>
-                        </GroupBox>
-                        <GroupBox Header="Current integration status">
-                            <TextBlock Text="Button intents are stored as manual/Kit-profile notes. Mapping them to a controller or game is a separate integration step and is not performed here." TextWrapping="Wrap" Margin="6" Foreground="{StaticResource MutedTextBrush}"/>
-                        </GroupBox>
-                        <GroupBox Header="Gunmote layout editor">
-                            <StackPanel Margin="6">
-                                <TextBlock Text="Edit the actual OnScreen and OffScreen mappings. Saving writes a layout file after review while Gunmote is closed; it does not switch the active layout or restart Gunmote." TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,8"/>
-                                <Grid Margin="0,0,0,8">
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                    <TextBlock Text="Shipped layout:" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                    <ComboBox x:Name="CmbGunmoteKind" Grid.Column="1" DisplayMemberPath="DisplayTitle" Padding="6,4"/>
-                                    <Button x:Name="BtnCopyGunmoteLayout" Grid.Column="2" Content="Copy preset" Style="{StaticResource AccentButton}" Margin="8,0,0,0"/>
-                                    <Button x:Name="BtnImportGunmoteLayout" Grid.Column="3" Content="Import layout…" Margin="8,0,0,0"/>
-                                </Grid>
-                                <TextBlock x:Name="TextGunmoteKindHelp" Text="Wähle eine Vorlage; ihre Originaldatei bleibt unverändert." TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Margin="2,0,0,8"/>
-                                <Grid Margin="0,0,0,8">
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                    <TextBlock Text="Layout title:" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                    <TextBox x:Name="TextGunmoteTitle" Grid.Column="1" Padding="7,4" Background="{StaticResource BackgroundBrush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}"/>
-                                    <TextBox x:Name="TextGunmoteFileName" Grid.Column="2" Width="180" Text="menu_user.json" ToolTip="New JSON filename inside the Keymaps directory" Margin="8,0,0,0" Padding="7,4" Background="{StaticResource BackgroundBrush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}"/>
-                                </Grid>
-                                <Grid Margin="0,0,0,8">
-                                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                                    <TextBlock Text="Keymaps folder:" VerticalAlignment="Center" Margin="0,0,8,0"/>
-                                    <TextBox x:Name="TextGunmoteKeymapsDir" Grid.Column="1" Padding="7,4" Background="{StaticResource BackgroundBrush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}"/>
-                                    <Button x:Name="BtnBrowseGunmoteKeymapsDir" Grid.Column="2" Content="Browse…" Margin="8,0,0,0"/>
-                                </Grid>
-                                <DataGrid x:Name="GridGunmoteMappings" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
-                                          Background="{StaticResource SurfaceBrush}" RowBackground="{StaticResource ElevatedBrush}" AlternatingRowBackground="{StaticResource ElevatedBrush}"
-                                          Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}" HeadersVisibility="Column"
-                                          GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="{StaticResource BorderBrush}" MaxHeight="360"/>
-                                <TextBox x:Name="TextGunmotePreview" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" MaxHeight="200" Visibility="Collapsed" Margin="0,8,0,0" Background="{StaticResource BackgroundBrush}" Foreground="{StaticResource MutedTextBrush}" BorderBrush="{StaticResource BorderBrush}"/>
-                                <TextBlock x:Name="TextGunmoteStatus" Text="Copy a shipped preset or import an existing layout to begin." TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,4"/>
-                                <WrapPanel Margin="0,6,0,0">
-                                    <Button x:Name="BtnSaveGunmoteLayout" Content="Review and save layout…" Style="{StaticResource SuccessButton}" Margin="0,0,8,6"/>
-                                    <TextBox x:Name="TextGunmoteChooserPath" Width="250" ToolTip="Existing Keymaps.json file" Margin="0,0,8,6" Padding="7,4" Background="{StaticResource BackgroundBrush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}"/>
-                                    <Button x:Name="BtnBrowseGunmoteChooser" Content="Choose Keymaps.json…" Margin="0,0,8,6"/>
-                                    <Button x:Name="BtnAddGunmoteChooser" Content="Separately add saved layout to chooser…" IsEnabled="False" Margin="0,0,8,6"/>
-                                </WrapPanel>
-                                <TextBlock Text="Chooser update only adds this saved filename to the chooser list. It does not select a layout or change Gunmote's active/default layout." TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}"/>
-                            </StackPanel>
-                        </GroupBox>
-                    </StackPanel>
-                </ScrollViewer>
-            </TabItem>
-            <!-- TAB 2: CONFIGURATION & TUNING -->
-            <TabItem Header="Einstellungen">
-                <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Margin="14">
                         <!-- GLOBAL TUNING -->
-                        <GroupBox Header="Global Pulse Stretching &amp; Engine Features">
+                        <GroupBox x:Name="GlobalEffectControls" Header="Gemeinsame Rückstoßwerte">
                             <StackPanel Margin="6">
                                 <!-- Recoil Stretch Slider -->
                                 <Grid Margin="0,0,0,12">
@@ -605,27 +522,27 @@
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="Recoil Pulse Stretch Duration:" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,16,0"/>
+                                    <TextBlock Text="Rückstoßdauer:" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,16,0"/>
                                     <Slider x:Name="SliderHoldMs" Grid.Column="1" Minimum="80" Maximum="300" Value="150" SmallChange="10" LargeChange="25" TickFrequency="10" IsSnapToTickEnabled="True"/>
                                     <Border Grid.Column="2" Background="{StaticResource ElevatedBrush}" CornerRadius="4" Padding="10,4" Margin="16,0,0,0">
                                         <TextBlock x:Name="TextHoldMsValue" Text="150 ms" FontWeight="Bold" Foreground="{StaticResource AccentBrush}"/>
                                     </Border>
                                 </Grid>
-                                <TextBlock Text="Stretches raw 16ms MAME recoil signals into a tactile kick that the Wiimote motor can physically reproduce." FontSize="11" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,14"/>
+                                <TextBlock Text="Verlängert kurze MAME-Rückstoßsignale, damit der Wiimote-Motor einen spürbaren Impuls ausgeben kann." FontSize="11" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,14"/>
 
                                 <Separator Background="{StaticResource BorderBrush}" Margin="0,0,0,12"/>
 
                                 <!-- Toggles -->
-                                <CheckBox x:Name="ChkAmmoDrop" Content="Ammo Drop Recoil Kick — triggers a tactile pulse when off-screen reload or magazine drops" IsChecked="True"/>
-                                <CheckBox x:Name="ChkLedLifeBar" Content="Health Bar LEDs — maps player life dynamically across Wiimote LEDs 1 to 4" IsChecked="True"/>
-                                <CheckBox x:Name="ChkTraceLog" Content="Trace Logging — logs every incoming and outgoing recoil event to recoil-stretch-trace.log" IsChecked="False"/>
+                                <CheckBox x:Name="ChkAmmoDrop" Content="Rückstoß bei sinkendem Munitionsstand" IsChecked="True"/>
+                                <CheckBox x:Name="ChkLedLifeBar" Content="Lebensanzeige — Spielergesundheit über Wiimote-LEDs 1 bis 4 anzeigen" IsChecked="True"/>
+                                <CheckBox x:Name="ChkTraceLog" Content="Ereignisprotokoll — Rückstoßereignisse in recoil-stretch-trace.log speichern" IsChecked="False"/>
                             </StackPanel>
                         </GroupBox>
 
                         <!-- GAME PROFILES -->
-                        <GroupBox Header="Per-Game Profiles (hotw.json)">
+                        <GroupBox Header="Spielprofile (hotw.json)">
                             <StackPanel Margin="6">
-                                <TextBlock Text="Customize recoil stretching and LED life bar behavior per arcade title:" FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,8"/>
+                                <TextBlock Text="Rückstoß und Lebensanzeige für einzelne Spiele anpassen:" FontSize="12" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,8"/>
                                 <DataGrid x:Name="GridGameProfiles" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
                                           Background="{StaticResource SurfaceBrush}" RowBackground="{StaticResource ElevatedBrush}" AlternatingRowBackground="{StaticResource ElevatedBrush}"
                                           Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}" HeadersVisibility="Column"
@@ -642,22 +559,101 @@
                                         </Style>
                                     </DataGrid.ColumnHeaderStyle>
                                     <DataGrid.Columns>
-                                        <DataGridTextColumn Header="Game / Title" Binding="{Binding Name}" Width="2*" IsReadOnly="True"/>
-                                        <DataGridCheckBoxColumn Header="Recoil Rumble" Binding="{Binding Rumble}" Width="*"/>
-                                        <DataGridCheckBoxColumn Header="LED Health Bar" Binding="{Binding Leds}" Width="*"/>
+                                        <DataGridTextColumn Header="Spiel" Binding="{Binding Name}" Width="2*" MinWidth="150" IsReadOnly="True"/>
+                                        <DataGridCheckBoxColumn Header="Rückstoß" Binding="{Binding Rumble}" Width="*" MinWidth="105"/>
+                                        <DataGridCheckBoxColumn Header="Lebens-LEDs" Binding="{Binding Leds}" Width="*" MinWidth="110"/>
                                     </DataGrid.Columns>
                                 </DataGrid>
 
                                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                     <TextBlock x:Name="TextConfigSaveStatus" Text="" Foreground="{StaticResource StatusSuccessBrush}" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,14,0"/>
-                                    <Button x:Name="BtnSaveConfig" Content="💾 Save Settings (Hot-Reloads Live)" Style="{StaticResource SuccessButton}"/>
+                                    <Button x:Name="BtnSaveConfig" Content="Einstellungen prüfen und speichern" Style="{StaticResource SuccessButton}"/>
                                 </StackPanel>
                             </StackPanel>
+                        </GroupBox>
+                        <GroupBox Header="Beim Anwenden">
+                            <TextBlock Text="Vor dem Speichern wird eine Änderungsvorschau mit Ziel und Werten gezeigt. Abbrechen lässt hotw.json unverändert; die mitgelieferte Vorlage bleibt geschützt." TextWrapping="Wrap" Margin="6" Foreground="{StaticResource MutedTextBrush}"/>
                         </GroupBox>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
-
+            <!-- TAB: SEMANTIC BUTTON PROFILE -->
+            <TabItem Header="Tasten &amp; Gunmote">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="14">
+                        <GroupBox x:Name="GunmoteLayoutEditor" Header="Gunmote-Steuerung">
+                            <StackPanel Margin="6">
+                                <TextBlock Text="Bearbeite die OnScreen- und OffScreen-Zuordnungen. Nach deiner Prüfung wird eine Layoutdatei gespeichert, während Gunmote geschlossen ist. Das aktive Layout wird nicht geändert." TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Margin="0,0,0,8"/>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                    <TextBlock Text="Vorlage:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <ComboBox x:Name="CmbGunmoteKind" Grid.Column="1" DisplayMemberPath="DisplayTitle" Padding="6,4"/>
+                                    <Button x:Name="BtnCopyGunmoteLayout" Grid.Column="2" Content="Vorlage kopieren" Style="{StaticResource AccentButton}" Margin="8,0,0,0"/>
+                                    <Button x:Name="BtnImportGunmoteLayout" Grid.Column="3" Content="Layout importieren…" Margin="8,0,0,0"/>
+                                </Grid>
+                                <TextBlock x:Name="TextGunmoteKindHelp" Text="Wähle eine Vorlage; ihre Originaldatei bleibt unverändert." TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Margin="2,0,0,8"/>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                    <TextBlock Text="Layoutname:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBox x:Name="TextGunmoteTitle" Grid.Column="1" Padding="7,4" Background="{StaticResource BackgroundBrush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}"/>
+                                    <TextBox x:Name="TextGunmoteFileName" Grid.Column="2" Width="180" Text="menu_user.json" ToolTip="Neuer JSON-Dateiname im Keymaps-Ordner" Margin="8,0,0,0" Padding="7,4" Background="{StaticResource BackgroundBrush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}"/>
+                                </Grid>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                    <TextBlock Text="Keymaps-Ordner:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBox x:Name="TextGunmoteKeymapsDir" Grid.Column="1" Padding="7,4" Background="{StaticResource BackgroundBrush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}"/>
+                                    <Button x:Name="BtnBrowseGunmoteKeymapsDir" Grid.Column="2" Content="Durchsuchen…" Margin="8,0,0,0"/>
+                                </Grid>
+                                <DataGrid x:Name="GridGunmoteMappings" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
+                                          Background="{StaticResource SurfaceBrush}" RowBackground="{StaticResource ElevatedBrush}" AlternatingRowBackground="{StaticResource ElevatedBrush}"
+                                          Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}" HeadersVisibility="Column"
+                                          GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="{StaticResource BorderBrush}" MaxHeight="360"/>
+                                <TextBox x:Name="TextGunmotePreview" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" MaxHeight="200" Visibility="Collapsed" Margin="0,8,0,0" Background="{StaticResource BackgroundBrush}" Foreground="{StaticResource MutedTextBrush}" BorderBrush="{StaticResource BorderBrush}"/>
+                                <TextBlock x:Name="TextGunmoteStatus" Text="Kopiere eine Vorlage oder importiere ein vorhandenes Layout." TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Margin="0,8,0,4"/>
+                                <WrapPanel Margin="0,6,0,0">
+                                    <Button x:Name="BtnSaveGunmoteLayout" Content="Layout prüfen und speichern…" Style="{StaticResource SuccessButton}" Margin="0,0,8,6"/>
+                                    <TextBox x:Name="TextGunmoteChooserPath" Width="250" ToolTip="Vorhandene Keymaps.json-Datei" Margin="0,0,8,6" Padding="7,4" Background="{StaticResource BackgroundBrush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}"/>
+                                    <Button x:Name="BtnBrowseGunmoteChooser" Content="Keymaps.json auswählen…" Margin="0,0,8,6"/>
+                                    <Button x:Name="BtnAddGunmoteChooser" Content="Gespeichertes Layout zur Auswahl hinzufügen…" IsEnabled="False" Margin="0,0,8,6"/>
+                                </WrapPanel>
+                                <TextBlock Text="Dies ergänzt nur den Dateinamen in der Layoutauswahl. Es wählt kein Layout aus und ändert nicht das aktive oder Standardlayout." TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}"/>
+                            </StackPanel>
+                        </GroupBox>
+                        <Expander x:Name="ButtonPlanningExpander" Header="Tastenprofil (Planung)" IsExpanded="False" Margin="0,0,0,10">
+                            <StackPanel>
+                        <GroupBox Header="Tastenwünsche">
+                            <StackPanel Margin="6">
+                                <TextBlock Text="Diese Liste hält gewünschte Tasten wie Schießen oder Nachladen fest. Sie richtet weder Controller noch Spielbelegung ein." TextWrapping="Wrap" Foreground="{StaticResource StatusWarningBrush}" Margin="0,0,0,10"/>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                    <TextBlock Text="Vorlage:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                    <ComboBox x:Name="CmbButtonTemplate" Grid.Column="1" MinWidth="240" DisplayMemberPath="Name" Padding="6,4"/>
+                                </Grid>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                    <TextBlock Text="Profilname:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                    <TextBox x:Name="TextButtonProfileName" Grid.Column="1" Text="Meine Tastenwünsche" Padding="8,5" Background="{StaticResource BackgroundBrush}" Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}"/>
+                                </Grid>
+                                <DataGrid x:Name="GridButtonIntents" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
+                                          Background="{StaticResource SurfaceBrush}" RowBackground="{StaticResource ElevatedBrush}" AlternatingRowBackground="{StaticResource ElevatedBrush}"
+                                          Foreground="{StaticResource TextBrush}" BorderBrush="{StaticResource BorderBrush}" HeadersVisibility="Column"
+                                          GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="{StaticResource BorderBrush}" MaxHeight="260"/>
+                                <WrapPanel Margin="0,10,0,0">
+                                    <Button x:Name="BtnCopyButtonProfile" Content="Vorlage kopieren" Style="{StaticResource AccentButton}" Margin="0,0,8,6"/>
+                                    <Button x:Name="BtnImportButtonProfile" Content="Profil importieren…" Margin="0,0,8,6"/>
+                                    <Button x:Name="BtnExportButtonProfile" Content="Profil exportieren…" Margin="0,0,8,6"/>
+                                </WrapPanel>
+                                <TextBlock x:Name="TextButtonProfileStatus" Text="Noch kein eigenes Tastenprofil erstellt." TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </GroupBox>
+                        <GroupBox Header="Aktueller Integrationsstand">
+                            <TextBlock Text="Tastenzuordnungen sind hier nur eine Planung. Eine Übertragung auf Controller oder Spiel erfolgt nicht." TextWrapping="Wrap" Margin="6" Foreground="{StaticResource MutedTextBrush}"/>
+                        </GroupBox>
+                            </StackPanel>
+                        </Expander>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
             <!-- TAB 3: LIVE LOG MONITOR -->
             <TabItem Header="Protokoll">
                 <Grid Margin="14">

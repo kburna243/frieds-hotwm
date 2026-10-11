@@ -171,6 +171,43 @@
         Assert-HotwmComboDisplayedText $script:ui.Controls.CmbGunmoteKind 3 ([string]$gunmote.DisplayTitle)
     }
 
+    It 'keeps effect controls in Effekte and puts the real Gunmote editor before collapsed planning' {
+        $script:ui.Window.Show()
+        try {
+            $tabs = @($script:ui.Controls.MainTabs.Items)
+            $tabs.Count | Should Be 5
+            @($tabs | Where-Object { [string]$_.Header -eq 'Einstellungen' }).Count | Should Be 0
+            $effectTab = @($tabs | Where-Object { [string]$_.Header -eq 'Effekte' })[0]
+            $buttonTab = @($tabs | Where-Object { [string]$_.Header -eq 'Tasten & Gunmote' })[0]
+
+            function Find-HotwmTabAncestor($Element) {
+                $node = [System.Windows.DependencyObject]$Element
+                while ($node) {
+                    if ($node -is [System.Windows.Controls.TabItem]) { return $node }
+                    $node = [System.Windows.LogicalTreeHelper]::GetParent($node)
+                }
+            }
+            (Find-HotwmTabAncestor $script:ui.Controls.GlobalEffectControls).Header | Should Be 'Effekte'
+            (Find-HotwmTabAncestor $script:ui.Controls.GridGameProfiles).Header | Should Be 'Effekte'
+            (Find-HotwmTabAncestor $script:ui.Controls.GunmoteLayoutEditor).Header | Should Be 'Tasten & Gunmote'
+            $script:ui.Controls.GlobalEffectControls.Header | Should Be 'Gemeinsame Rückstoßwerte'
+            $script:ui.Controls.BtnApplyEffectProfile.Content | Should Be 'Profil prüfen und anwenden…'
+            $script:ui.Controls.BtnSaveConfig.Content | Should Be 'Einstellungen prüfen und speichern'
+            $script:ui.Controls.BtnCopyGunmoteLayout.Content | Should Be 'Vorlage kopieren'
+            $script:ui.Controls.ChkAmmoDrop.Content | Should Be 'Rückstoß bei sinkendem Munitionsstand'
+            $script:ui.Controls.ButtonPlanningExpander.IsExpanded | Should Be $false
+            $buttonContent = $buttonTab.Content.Content
+            $buttonContent.Children[0].Name | Should Be 'GunmoteLayoutEditor'
+            $buttonContent.Children[1].Name | Should Be 'ButtonPlanningExpander'
+
+            $script:ui.Controls.MainTabs.SelectedIndex = 0
+            $script:ui.Controls.BtnOpenEffectTuning.RaiseEvent(([System.Windows.RoutedEventArgs]::new([System.Windows.Controls.Button]::ClickEvent)))
+            $script:ui.Window.UpdateLayout()
+            $script:ui.Controls.MainTabs.SelectedItem | Should Be $effectTab
+            $script:ui.Controls.GlobalEffectControls.IsVisible | Should Be $true
+        } finally { $script:ui.Window.Hide() }
+    }
+
     It 'keeps an inspected Quick session and its assignment when the same folder is validated again' {
         $records = @([pscustomobject]@{ InstanceId='BTHENUM\DEV_001122334455\7&123&0&BLUETOOTHDEVICE_001122334455'; FriendlyName='Nintendo RVL-CNT-01'; Status='OK' })
         $started = & $script:ui.WizardDispatch 'Start' @{ Root=$script:validTarget; Mode='Quick'; DeviceRecords=$records; DependencyRecords=@() }
@@ -485,6 +522,29 @@
         $built.Layout.All.OnScreen.A | Should Be '360.custom-fire'
         $built.Layout.All.OffScreen.A | Should Be '360.custom-reload'
         $script:ui.Controls.TextGunmotePreview.Visibility | Should Be ([Windows.Visibility]::Collapsed)
+    }
+
+    It 'allocates readable Gunmote mapping columns at the minimum window width' {
+        $script:ui.Window.Width = 850
+        $script:ui.Controls.MainTabs.SelectedIndex = 3
+        $script:ui.Window.Show()
+        try {
+            $copy = & $script:ui.GunmoteDispatch 'CopyLayout' $null
+            $copy.Success | Should Be $true
+            $script:ui.Controls.GunmoteLayoutEditor.BringIntoView()
+            $script:ui.Window.UpdateLayout()
+            [System.Windows.Threading.Dispatcher]::CurrentDispatcher.Invoke([action]{}, [System.Windows.Threading.DispatcherPriority]::ApplicationIdle)
+            $grid = $script:ui.Controls.GridGunmoteMappings
+            $grid.ActualWidth | Should BeGreaterThan 600
+            $grid.Columns.Count | Should Be 3
+            $grid.Columns[0].Header | Should Be 'Taste'
+            $grid.Columns[1].Header | Should Be 'Zuordnung OnScreen'
+            $grid.Columns[2].Header | Should Be 'Zuordnung OffScreen'
+            $grid.Columns[0].ActualWidth | Should BeGreaterThan 80
+            $grid.Columns[1].ActualWidth | Should BeGreaterThan 180
+            $grid.Columns[2].ActualWidth | Should BeGreaterThan 180
+            (($grid.Columns | Measure-Object -Property ActualWidth -Sum).Sum -le $grid.ActualWidth) | Should Be $true
+        } finally { $script:ui.Window.Hide() }
     }
 
     It 'keeps layout and chooser previews in Expert mode while reviewing in every mode' {

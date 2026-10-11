@@ -900,7 +900,12 @@ $controls.BtnExportEffectProfile.Add_Click({
     $dialog.FileName = ([string]$controls.TextEffectProfileName.Text) + '.json'
     if ($dialog.ShowDialog() -eq $true) { [void](& $profileDispatcher 'ExportEffect' @{ Path = $dialog.FileName }) }
 }.GetNewClosure())
-$controls.BtnOpenEffectTuning.Add_Click({ $controls.MainTabs.SelectedIndex = 4 }.GetNewClosure())
+$controls.BtnOpenEffectTuning.Add_Click({
+    $effectTab = $null
+    foreach ($tab in $controls.MainTabs.Items) { if ([string]$tab.Header -eq 'Effekte') { $effectTab = $tab; break } }
+    if ($effectTab) { $controls.MainTabs.SelectedItem = $effectTab }
+    $controls.GlobalEffectControls.BringIntoView()
+}.GetNewClosure())
 $controls.BtnCopyButtonProfile.Add_Click({ [void](& $profileDispatcher 'CopyButtons' $null) }.GetNewClosure())
 $controls.BtnImportButtonProfile.Add_Click({
     $dialog = New-Object Microsoft.Win32.OpenFileDialog
@@ -1022,18 +1027,18 @@ $gunmoteDispatcher = {
             $controls.CmbGunmoteKind.ItemsSource = $kinds
             $controls.CmbGunmoteKind.SelectedIndex = 0
             $onColumn = [System.Windows.Controls.DataGridTextColumn]::new()
-            $onColumn.Header = 'OnScreen mapping'
+            $onColumn.Header = 'Zuordnung OnScreen'
             $onColumn.Binding = [System.Windows.Data.Binding]::new('OnScreen')
             $onColumn.Width = [System.Windows.Controls.DataGridLength]::new(1, [System.Windows.Controls.DataGridLengthUnitType]::Star)
             [void]$controls.GridGunmoteMappings.Columns.Add($onColumn)
             $inputColumn = [System.Windows.Controls.DataGridTextColumn]::new()
-            $inputColumn.Header = 'Gunmote input'
+            $inputColumn.Header = 'Taste'
             $inputColumn.Binding = [System.Windows.Data.Binding]::new('Input')
             $inputColumn.IsReadOnly = $true
             $inputColumn.Width = [System.Windows.Controls.DataGridLength]::new(1, [System.Windows.Controls.DataGridLengthUnitType]::Auto)
             [void]$controls.GridGunmoteMappings.Columns.Insert(0, $inputColumn)
             $offColumn = [System.Windows.Controls.DataGridTextColumn]::new()
-            $offColumn.Header = 'OffScreen mapping'
+            $offColumn.Header = 'Zuordnung OffScreen'
             $offColumn.Binding = [System.Windows.Data.Binding]::new('OffScreen')
             $offColumn.Width = [System.Windows.Controls.DataGridLength]::new(1, [System.Windows.Controls.DataGridLengthUnitType]::Star)
             [void]$controls.GridGunmoteMappings.Columns.Add($offColumn)
