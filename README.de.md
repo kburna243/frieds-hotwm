@@ -128,7 +128,7 @@ Das fertige Paket liegt anschließend unter `dist/frieds-hotwm-v<version>.zip`.
 
 Das ursprüngliche Relay, die Konfigurations-Engine, Windows-Task-Tools, das Dashboard-Grundgerüst und das portable Paket (Phasen 1–5) sind abgeschlossen. Diese historischen Meilensteine bedeuten nicht, dass die neuere Einrichtungs-Orchestrierung fertig ist.
 
-**Aktuelle Arbeit — geführte Einrichtung und Kit-Orchestrierung:** Das Dashboard bietet drei Einrichtungsmodi, lesende Geräteinformationen, manuelle Prüfvermerke und einzeln geprüfte lokale Änderungen. Ein sicheres Kit-Gesamtverfahren ist weiterhin in Arbeit: Aktuelle Kit-Probeläufe liefern HOTWM nicht die exakten Datei-/Taskvorschläge, die für eine Prüfung mit daran gebundener Freigabe nötig wären. Es gibt keinen verbundenen externen Agenten; die tatsächliche Wiimote-Funktion erfordert weiterhin Hardwaretests.
+**Aktuelle Arbeit — geführte Einrichtung und Kit-Orchestrierung:** Das Dashboard bietet drei Einrichtungsmodi, lesende Geräteinformationen, manuelle Prüfvermerke und einzeln geprüfte lokale Änderungen. Ein sicheres Kit-Gesamtverfahren ist weiterhin in Arbeit: Aktuelle Kit-Probeläufe liefern HOTWM nicht die exakten Datei-/Taskvorschläge, die für eine Prüfung mit daran gebundener Freigabe nötig wären. Die gewünschte MAC-Spielerzuordnung lässt sich im Kit speichern (Kit-API 1.8, „Zuordnung ins Kit übernehmen“): Das Kit zeigt zuerst seinen Plan und schreibt nur genau diesen. Der RetroGamingAgent nutzt dieselbe Kit-Operation hinter seiner eigenen Freigabe. Die tatsächliche Wiimote-Funktion erfordert weiterhin Hardwaretests.
 
 ---
 

@@ -258,6 +258,33 @@
         $started.Session.Devices[1].DesiredPlayer | Should Be $null
     }
 
+    It 'hands the MAC assignments to the Kit only after the person approves the Kit plan' {
+        $script:ui.Controls.BtnKitBindWizard | Should Not BeNullOrEmpty
+        $records = @(
+            [pscustomobject]@{ InstanceId='BTHENUM\DEV_001122334455\7&123&0&BLUETOOTHDEVICE_001122334455'; FriendlyName='Nintendo RVL-CNT-01 Player A'; Status='OK' },
+            [pscustomobject]@{ InstanceId='BTHENUM\DEV_001122334466\7&123&0&BLUETOOTHDEVICE_001122334466'; FriendlyName='Nintendo RVL-CNT-01 Player B'; Status='OK' }
+        )
+        $started = & $script:ui.WizardDispatch 'Start' @{ Root=$script:validTarget; Mode='Quick'; DeviceRecords=$records; DependencyRecords=@() }
+        $null = & $script:ui.WizardDispatch 'Assign' @{ DeviceKey=$started.Session.Devices[0].DeviceKey; Player=2 }
+        $null = & $script:ui.WizardDispatch 'Assign' @{ DeviceKey=$started.Session.Devices[1].DeviceKey; Player=1 }
+        $script:kitCalls = New-Object System.Collections.ArrayList
+        $kit = {
+            param($operation, $parameters, $apply)
+            [void]$script:kitCalls.Add([pscustomobject]@{ Parameters=$parameters; Apply=$apply })
+            $rows = @(foreach ($part in ([string]$parameters.Binding -split ',')) { $mac, $player = $part -split '='; [pscustomobject]@{ Player=[int]$player; Mac=$mac } })
+            if ($apply) { return [pscustomobject]@{ Success=$true; Status='Done'; Message='Wiimote binding saved'; Data=[pscustomobject]@{ Wiimotes=$rows } } }
+            [pscustomobject]@{ Success=$true; Status='WhatIf'; Message='Plan'; Data=[pscustomobject]@{ Wiimotes=$rows; PlanId=('a' * 64) } }
+        }
+        $declined = & $script:ui.WizardDispatch 'KitBind' @{ KitInvoker=$kit; Confirm={ $false } }
+        $declined.Binding.Status | Should Be 'Declined'
+        @($script:kitCalls | Where-Object Apply).Count | Should Be 0
+        $done = & $script:ui.WizardDispatch 'KitBind' @{ KitInvoker=$kit; Confirm={ $true } }
+        $done.Success | Should Be $true
+        $done.Binding.Binding | Should Be '001122334466=1,001122334455=2'
+        $script:kitCalls[-1].Parameters.PlanId | Should Be ('a' * 64)
+        $script:ui.Controls.TextWizardStatus.Text | Should Match 'Im Kit gespeichert'
+    }
+
     It 'keeps the second selected device through assignment and mode changes before checking it' {
         $records = @(
             [pscustomobject]@{ InstanceId='BTHENUM\DEV_001122334455\7&123&0&BLUETOOTHDEVICE_001122334455'; FriendlyName='Nintendo RVL-CNT-01 Player A'; Status='OK' },

@@ -1,10 +1,10 @@
 {
-  "ContractVersion": "1.3",
+  "ContractVersion": "1.4",
   "TargetKit": {
-    "ApiVersion": "1.6",
+    "ApiVersion": "1.8",
     "MinApiVersion": "1.4",
     "KitVersion": "1.4.0",
-    "Commit": "5d14432"
+    "Commit": "d50ba49"
   },
   "RequiredOperations": [
     {
@@ -72,6 +72,29 @@
         },
         {
           "Name": "RetroBatRoot",
+          "Type": "String",
+          "Mandatory": false
+        }
+      ]
+    },
+    {
+      "Name": "controllers.wiimote_order",
+      "Kind": "Read",
+      "Description": "Which Wiimote is player 1, 2, ... in Gunmote right now (Gunmote numbers them in the order they connect) and whether that matches the saved binding: Ok, Swapped, Unbound, Unclear, NoGunmote, NoWiimote.",
+      "Parameters": []
+    },
+    {
+      "Name": "controllers.wiimote_bind",
+      "Kind": "Change",
+      "Description": "Save the Wiimote player binding (Bluetooth address -> player): Binding \"MAC=1,MAC=2\" as chosen, without it the current connection order. The plan shows the binding and a PlanId; -Apply with that PlanId writes only if nothing changed since.",
+      "Parameters": [
+        {
+          "Name": "Binding",
+          "Type": "String",
+          "Mandatory": false
+        },
+        {
+          "Name": "PlanId",
           "Type": "String",
           "Mandatory": false
         }

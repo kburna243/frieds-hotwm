@@ -58,3 +58,20 @@ Geprüfte Produktrevision: `15d2f3d`. Vollständiger Standardlauf unter Windows 
 Zusätzlich wurde das portable ZIP in ein neues temporäres Verzeichnis entpackt und das Dashboard von einem fremden Arbeitsverzeichnis geladen. Theme, alle vier lokalen Maskottchen und Layoutvorlagen wurden ohne Zugriff auf das externe Asset-Projekt geladen. Einrichten, Effekte und Tasten wurden als WPF-Ansichten gerendert und visuell geprüft; die Einrichtungsansicht außerdem mit 125 % bei 850 logischen Pixeln. Bei der Aufnahme wurden verzögerte WPF-Dispatcher-Aufgaben abgearbeitet, damit Textvorlagen und Tabellenspalten korrekt gemessen werden. Mindestbreite und manuelle Prüfschritt-Buttons sind zusätzlich durch Tests abgesichert. Dies ist kein vollständiger Barrierefreiheits- oder Betriebssystem-DPI-Test.
 
 Der All-in-one-Produktabschluss bleibt offen: exakte Kit-Installationspläne mit daran gebundener Freigabe, ein tatsächlicher Agent-Verbraucher und Hardware-Abnahme mit Wiederverbindung/vertauschtem Einschaltablauf, manueller Kalibrierung, Zielen, Abzug und Feedback pro Spieler. Die 3D-Quellen sind dokumentiert, aber noch nicht in die native Oberfläche eingebunden. Es wurde weder ein Release veröffentlicht noch ein Commit gepusht.
+
+## MAC-Spielerzuordnung im Kit, Agent nachgezogen — 2026-10-11
+
+Die bestätigte Bluetooth-MAC→Spieler-Zuordnung wird jetzt im Kit gespeichert (Kit-Branch `feat/wiimote-mac-binding`, Commits `6fc56d2` und `d50ba49`, Kit-API 1.8). `controllers.wiimote_bind` nimmt `Binding` (`MAC=Spieler,…`) und liefert im Probelauf eine `PlanId` (SHA-256 über Zuordnung und bisherige `wiimotes.json`); ein Apply mit dieser PlanId schreibt nur, wenn sich beides seitdem nicht geändert hat. `-Anonymize` und Support-Bundle maskieren Bluetooth-Adressen als `<MAC>`.
+
+Hotwm: `src/HotwmKitBinding.ps1` und Button „Zuordnung ins Kit übernehmen“. Ablauf: Probelauf → Kit-Plan muss exakt der Zuordnung entsprechen und eine PlanId tragen → eine Bestätigung im Dialog → Apply mit PlanId. Ein Kit ohne PlanId wird nie angewendet. Vertrag `contract/kit-contract-v1.json` auf API 1.8 (Kit `d50ba49`), Drift-Prüfung gegen das lokale Kit: 0 Abweichungen.
+
+Agent (`frieds-retrogaming-agent`, Branch `feat/wiimote-binding`, Commit `893701a`): Tools `wiimote_order` und `wiimote_bind`; die Policy-Engine übernimmt die PlanId nur aus ihrem eigenen Probelauf, ein vom Modell oder Aufrufer gesetztes `PlanId` wird vor jedem Kit-Aufruf abgelehnt. Vertrags-Snapshot auf Kit `d50ba49`, Drift-Prüfung: Snapshot entspricht dem Live-Katalog.
+
+Ergebnisse:
+
+- Hotwm Standardlauf unter Windows PowerShell 5.1: **121 bestanden, 0 fehlgeschlagen, 0 übersprungen** (vorher 115; neu: 5 Bindungstests, davon einer als reiner Probelauf gegen das lokale Kit, und 1 GUI-Test).
+- Agent `npm run check`: 161 bestanden, 3 übersprungen (warten wie bisher auf ein lokales Modell), Repo-Regeln OK.
+- Kit: neue API-, Support- und GUI-Tests bestehen. Die Gesamtsuite im Entwicklungsordner zeigt zusätzliche Fehlschläge in Profil-Export/-Import; Ursache ist eine dort liegende, ignorierte `lightgun\install-state.json` vom 03.10., die diese Tests statt ihrer Testdaten lesen. In einem frischen Worktree von `main` treten sie nicht auf. Die 10 Fehlschläge, die auch `main` hier zeigt (Ausgabe-Middleware, Wartungsseite u. a.), hängen von dieser Maschine ab und sind nicht Teil dieser Änderung.
+- Separate Prüfung (Code-Review-Agent): nichts Blockierendes; umgesetzt wurden die Maskierung von MACs nur aus Ziffern, ausgenommene GUID-Enden, keine leere PlanId als Umgehung, PlanId-Formatprüfung im Agent, explizite Übergabe der Zuordnung in Hotwm.
+
+Bekannte Grenze: In anonymisierten Agent-Sitzungen zeigt der Plan `<MAC>` statt der Adressen; die PlanId bindet trotzdem den echten Plan. Für eine Auswahl nach Adresse ist Hotwm der Weg. Kein physischer Hardwaretest: Ob Gunmote die gespeicherte Zuordnung nach Wiederverbindung einhält, prüft weiterhin `controllers.wiimote_order` am Cabinet.

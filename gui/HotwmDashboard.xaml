@@ -266,6 +266,7 @@
                                     <Button x:Name="BtnRefreshWizard" Content="Neu verbinden / aktualisieren" Margin="8,0,0,0"/>
                                     <Button x:Name="BtnImportWizardState" Content="Verlauf importieren" Margin="8,0,0,0"/>
                                     <Button x:Name="BtnSaveWizardState" Content="Prüfen und speichern" Margin="8,0,0,0"/>
+                                    <Button x:Name="BtnKitBindWizard" Content="Zuordnung ins Kit übernehmen" Margin="8,0,0,0" ToolTip="Speichert die Spielerzuordnung per Bluetooth-MAC im Retrogaming Kit; du siehst vorher den Plan des Kits."/>
                                 </StackPanel>
                                 <Grid Margin="0,0,0,8">
                                     <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>

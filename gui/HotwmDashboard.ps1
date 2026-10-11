@@ -617,6 +617,21 @@ $wizardDispatcher = {
                 $controls.TextWizardStatus.Text = if ($result.Success) { 'Setup-Verlauf gespeichert. Aktuelle Prüfungen bleiben unbestätigte Nutzeraussagen.' } else { 'Speichern abgebrochen; die Verlaufsdatei wurde nicht geändert.' }
                 return [pscustomobject]@{ Success=$result.Success; Action=$action; Result=$result; Session=$wizardState.Session }
             }
+            'KitBind' {
+                if (-not $wizardState.Session) { throw 'Start a setup session first.' }
+                $bindingScript = Join-Path $srcDir 'HotwmKitBinding.ps1'
+                if (-not (Test-Path -LiteralPath $bindingScript -PathType Leaf)) { throw 'Kit binding module is unavailable.' }
+                . $bindingScript
+                $confirm = if ($Argument -and $Argument.Confirm) { $Argument.Confirm } else {
+                    { param($plan) Confirm-HotwmOperation -Title 'Spielerzuordnung ins Kit übernehmen' -Effect ("Das Kit plant:`n$([string]$plan.Message)`n`nGespeichert wird in der Kit-Datei wiimotes.json (die alte Datei bleibt als Sicherung). Hat sich die Datei seit diesem Plan geändert, schreibt das Kit nichts.`n`nGunmote nummeriert weiter nach Einschaltreihenfolge; prüfe danach den Laufzeitplatz.") }
+                }
+                $bindArgs = @{ Mappings=@($wizardState.Session.Mappings); Confirm=$confirm }
+                if ($Argument -and $Argument.KitInvoker) { $bindArgs.KitInvoker = $Argument.KitInvoker }
+                $bound = Publish-HotwmKitWiimoteBinding @bindArgs
+                $controls.TextWizardStatus.Text = switch ($bound.Status) { 'Done' { "Im Kit gespeichert: $($bound.Message)" } 'Declined' { $bound.Message } default { "Kit-Zuordnung nicht gespeichert: $($bound.Message)" } }
+                if ($bound.Status -eq 'Failed') { $controls.TextWizardStatus.Foreground = $brushRed }
+                return [pscustomobject]@{ Success=$bound.Success; Binding=$bound; Session=$wizardState.Session }
+            }
             'Render' { if ($wizardState.Session) { $wizardState.Checklist = Get-HotwmSetupChecklist -Session $wizardState.Session }; return (& $wizardState.Render) }
             default { throw "Unknown setup wizard operation: $Operation" }
         }
@@ -686,6 +701,7 @@ $controls.BtnConfirmAim.Add_Click({ [void](& $wizardDispatcher 'Aim' $null) }.Ge
 $controls.BtnConfirmTrigger.Add_Click({ [void](& $wizardDispatcher 'Trigger' $null) }.GetNewClosure())
 $controls.BtnImportWizardState.Add_Click({ [void](& $wizardDispatcher 'Import' $null) }.GetNewClosure())
 $controls.BtnSaveWizardState.Add_Click({ [void](& $wizardDispatcher 'Save' $null) }.GetNewClosure())
+$controls.BtnKitBindWizard.Add_Click({ [void](& $wizardDispatcher 'KitBind' $null) }.GetNewClosure())
 $controls.CmbWizardDevice.Add_SelectionChanged({
     $selected = $controls.CmbWizardDevice.SelectedItem
     if ($selected -and $wizardState.Session) {

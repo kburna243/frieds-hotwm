@@ -44,11 +44,14 @@ name and a plain parameter hashtable. Production calls go through
 pass `-Apply`, an approval flag, or arbitrary script content. The seam is not a
 security boundary against arbitrary code running as the same Windows user.
 
-This contract does not implement apply/rollback or a consent flow. The Kit's
-separate `controllers.wiimote_bind` operation can write the global binding, but
-this snapshot never invokes it. No external Agent currently consumes this
-snapshot; future changes must present a proposal through the trusted GUI path
-before adding any write behavior. The GUI's existing canned Agent success
+This snapshot does not implement apply/rollback or a consent flow and never
+invokes `controllers.wiimote_bind`. Writing the binding is a separate path:
+`Publish-HotwmKitWiimoteBinding` in `src/HotwmKitBinding.ps1` sends the
+session's confirmed MAC mappings as `Binding` (Kit API 1.8), shows the Kit's
+plan through the trusted GUI confirmation, and applies only with that plan's
+`PlanId`; a Kit without plan ids is never applied. The RetroGamingAgent
+(`frieds-retrogaming-agent`) uses the same Kit operation through its own
+policy gate and passes the `PlanId` from its own dry run; a model cannot set it. The GUI's existing canned Agent success
 messages are not evidence that an Agent has queried this contract or changed
 the cabinet. These legacy placeholders belong to the separate RetroGamingAgent
 project; Hotwm does not treat them as a successful integration.

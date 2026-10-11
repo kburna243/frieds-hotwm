@@ -128,7 +128,7 @@ The resulting archive will be placed in `dist/frieds-hotwm-v<version>.zip`.
 
 The original relay, configuration engine, Windows task tools, dashboard foundation, and portable package (Phases 1–5) are completed. Those historical milestones do not mean the newer setup orchestration is finished.
 
-**Current work — guided setup and Kit orchestration:** the dashboard now offers three setup modes, read-only device evidence, manual-check tracking, and individually reviewed local edits. A safe all-in-one Kit flow remains in progress: current Kit dry-runs do not expose the exact file/task proposals HOTWM would need to review and bind to approval. There is no connected external Agent consumer, and real Wiimote operation still requires physical testing.
+**Current work — guided setup and Kit orchestration:** the dashboard now offers three setup modes, read-only device evidence, manual-check tracking, and individually reviewed local edits. A safe all-in-one Kit flow remains in progress: current Kit dry-runs do not expose the exact file/task proposals HOTWM would need to review and bind to approval. The desired MAC-to-player assignment can be saved in the Kit (Kit API 1.8, "Zuordnung ins Kit übernehmen"): the Kit shows its plan first and writes only that plan. The RetroGamingAgent uses the same Kit operation behind its own approval gate. Real Wiimote operation still requires physical testing.
 
 ---
 
