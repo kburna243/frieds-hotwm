@@ -32,6 +32,10 @@ Jeder fertiggestellte Schritt erhält nach passenden Tests und separater Prüfun
 | Validierte Effekt-/semantische Buttonvorlagen | b3396fc | 8 Pester-Tests; geschützte Originalvorlagen, Import-/Exportvorschläge |
 | Relay wertet Live-Effekte korrekt aus | c0be855 | 11 Python-Tests und Selbsttest; LED-Modus, Impulsdauer, Spielausnahmen, ungültige Konfiguration |
 | Nintendo-HID-Elterneintrag und Herkunft der Identität | ef05cba | 12 Pester-Tests und separate Prüfung; gewünschter Spieler bleibt vom unbekannten Gunmote-Laufzeitslot getrennt |
+| Tatsächliche Gunmote-Tastenlayouts und separater Auswahlmenü-Vorschlag | 9ebde68 | 9 Pester-Tests und unabhängige Prüfung; Prozesszustand, Zielschutz, gespeicherter Layout-Hash und getrennte Freigaben |
+| Sichtbarer Effektprofil-Editor und semantische Button-Checklisten | 5772967 | 10 GUI-Tests und unabhängige Prüfung; Vorschau aus tatsächlichem Schreibvorschlag, Import-/Exporterhalt externer Spiele |
+| Lokale Fried’s-Designquellen und Maskottchen | 11412fd | Vier SVG-Originale per Hash verglichen; vier transparente PNGs visuell geprüft; keine externe Bildabhängigkeit |
+| Geführte Einrichtungszustände und manuelle Prüfschritte | 9cd9ae6 | 13 Pester-Tests und unabhängige Prüfung; Slotwechsel einschließlich 1→2→1 entwertet Folgeprüfungen, Zuordnungskonflikte verändern keinen Zustand |
 
 Die Dateiaustauschtests benötigen in der lokalen Codex-Sandbox zusätzliche Testberechtigung: die Sandbox verweigert `File.Replace` auch in temporären Testordnern. Ein identischer isolierter Test außerhalb der Sandbox funktionierte. Das Produkt verwendet weiterhin den normalen atomaren Windows-Dateiaustausch; es enthält keinen Sandbox-Workaround. Alle Eingriffstests verwenden Testdateien, keine reale Gunmote-/Cabinet-Konfiguration.
 
