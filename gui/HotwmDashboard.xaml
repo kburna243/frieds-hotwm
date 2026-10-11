@@ -111,6 +111,57 @@
 
         <!-- TABS -->
         <TabControl Grid.Row="1" Background="#181A26" BorderBrush="#2D3148" BorderThickness="1">
+            <!-- TAB 0: GUIDED SETUP -->
+            <TabItem Header="Setup">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="14">
+                        <GroupBox Header="Setup folder">
+                            <StackPanel Margin="6">
+                                <TextBlock Text="Select a RetroBat or other emulator setup folder. Validation only inspects folder names and never changes the selected folder." TextWrapping="Wrap" Foreground="#8F93A2" Margin="0,0,0,8"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                    <TextBox x:Name="TextSetupFolder" Grid.Column="0" MinWidth="300" Padding="8,6" Background="#0E1017" Foreground="#ECEFF4" BorderBrush="#3B4261"/>
+                                    <Button x:Name="BtnBrowseSetupFolder" Grid.Column="1" Content="Browse…" Margin="8,0,0,0"/>
+                                    <Button x:Name="BtnValidateSetupFolder" Grid.Column="2" Content="Validate folder" Style="{StaticResource AccentButton}" Margin="8,0,0,0"/>
+                                </Grid>
+                                <TextBlock x:Name="TextSetupFolderStatus" Text="Choose a folder to begin." TextWrapping="Wrap" Foreground="#8F93A2" Margin="0,8,0,0"/>
+                            </StackPanel>
+                        </GroupBox>
+                        <GroupBox Header="Setup mode">
+                            <StackPanel Margin="6">
+                                <StackPanel Orientation="Horizontal">
+                                    <RadioButton x:Name="RadioQuickMode" Content="Quick" IsChecked="True" Margin="0,0,20,0"/>
+                                    <RadioButton x:Name="RadioCustomMode" Content="Custom" Margin="0,0,20,0"/>
+                                    <RadioButton x:Name="RadioExpertMode" Content="Expert"/>
+                                </StackPanel>
+                                <Border Background="#202334" Padding="10" Margin="0,8,0,0" CornerRadius="4">
+                                    <StackPanel>
+                                        <TextBlock x:Name="TextQuickModeDetail" Text="Recommended path: inspect the target folder, review detected devices, then make each required change with its own approval." TextWrapping="Wrap" Foreground="#8F93A2"/>
+                                        <TextBlock x:Name="TextCustomModeDetail" Text="Review folder, device identity, player mapping, and manual calibration evidence one step at a time." TextWrapping="Wrap" Foreground="#8F93A2" Visibility="Collapsed"/>
+                                        <TextBlock x:Name="TextExpertModeDetail" Text="Expert details: target path and raw device instance IDs are shown for diagnosis. Device presence alone never sets a playable status." TextWrapping="Wrap" Foreground="#8F93A2" Visibility="Collapsed"/>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+                        </GroupBox>
+                        <GroupBox Header="Read-only device discovery">
+                            <StackPanel Margin="6">
+                                <TextBlock Text="Discovery reads Windows device information. A detected PnP device does not prove Bluetooth identity, player assignment, calibration, or that a gun is playable." TextWrapping="Wrap" Foreground="#FFB020" Margin="0,0,0,8"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                    <Button x:Name="BtnRefreshDiscovery" Content="Refresh device discovery" Style="{StaticResource AccentButton}"/>
+                                    <TextBlock x:Name="TextDiscoveryStatus" Text="Not checked" Foreground="#8F93A2" VerticalAlignment="Center" Margin="12,0,0,0"/>
+                                </StackPanel>
+                                <ListBox x:Name="ListDiscoveredDevices" MinHeight="60" MaxHeight="180" Background="#0E1017" Foreground="#ECEFF4" BorderBrush="#2D3148"/>
+                            </StackPanel>
+                        </GroupBox>
+                        <GroupBox Header="Next steps">
+                            <StackPanel Margin="6">
+                                <TextBlock Text="Pairing is semi-automatic: follow the device's physical pairing steps, then refresh discovery and verify its identity and player mapping. If no stable Bluetooth MAC is available, assign the device manually; do not infer identity from its display name." TextWrapping="Wrap" Margin="0,0,0,8"/>
+                                <TextBlock Text="Calibration is manual and guided. Complete a per-player aiming test after calibration. Opening a calibration tool alone does not count as success." TextWrapping="Wrap" Foreground="#8F93A2"/>
+                            </StackPanel>
+                        </GroupBox>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
             <!-- TAB 1: STATUS & HARDWARE -->
             <TabItem Header="Dashboard &amp; Status">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -259,8 +310,8 @@
                                         <StackPanel>
                                             <TextBlock Text="Player 1 (Main Gunmote)" FontWeight="Bold" Foreground="#00E5FF" FontSize="14" Margin="0,0,0,8"/>
                                             <WrapPanel>
-                                                <Button x:Name="BtnTestP1Rumble" Content="⚡ Test P1 Recoil Kick" Style="{StaticResource AccentButton}" Margin="0,0,8,6"/>
-                                                <Button x:Name="BtnTestP1Leds" Content="💡 Cycle P1 LEDs (1-4)" Margin="0,0,8,6"/>
+                                                <Button x:Name="BtnTestP1Rumble" Content="Send P1 recoil kick (rumble)" Style="{StaticResource AccentButton}" Margin="0,0,8,6"/>
+                                                <Button x:Name="BtnTestP1Leds" Content="Cycle P1 LEDs 1 to 4" Margin="0,0,8,6"/>
                                             </WrapPanel>
                                         </StackPanel>
                                     </Border>
@@ -270,8 +321,8 @@
                                         <StackPanel>
                                             <TextBlock Text="Player 2 (Second Gunmote)" FontWeight="Bold" Foreground="#FF80BF" FontSize="14" Margin="0,0,0,8"/>
                                             <WrapPanel>
-                                                <Button x:Name="BtnTestP2Rumble" Content="⚡ Test P2 Recoil Kick" Style="{StaticResource AccentButton}" Margin="0,0,8,6"/>
-                                                <Button x:Name="BtnTestP2Leds" Content="💡 Cycle P2 LEDs (1-4)" Margin="0,0,8,6"/>
+                                                <Button x:Name="BtnTestP2Rumble" Content="Send P2 recoil kick (rumble)" Style="{StaticResource AccentButton}" Margin="0,0,8,6"/>
+                                                <Button x:Name="BtnTestP2Leds" Content="Cycle P2 LEDs 1 to 4" Margin="0,0,8,6"/>
                                             </WrapPanel>
                                         </StackPanel>
                                     </Border>

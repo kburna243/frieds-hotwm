@@ -26,7 +26,8 @@ Add-Type -AssemblyName PresentationFramework, PresentationCore, WindowsBase
 $guiDir  = $PSScriptRoot
 $repoDir = Split-Path -Parent $guiDir
 $xamlPath = Join-Path $guiDir "HotwmDashboard.xaml"
-$configPath = Join-Path $repoDir "config\hotw.json"
+$script:configPath = Join-Path $repoDir "config\hotw.json"
+$setupState = [pscustomobject]@{ RetroBatRoot = $null; Root = $null }
 $toolsDir = Join-Path $repoDir "tools"
 $srcDir = Join-Path $repoDir "src"
 
@@ -35,6 +36,10 @@ $kitClientScript = Join-Path $srcDir "KitClient.ps1"
 if (Test-Path $kitClientScript) {
     . $kitClientScript
 }
+$setupCoreScript = Join-Path $srcDir 'HotwmSetup.ps1'
+if (Test-Path $setupCoreScript) { . $setupCoreScript }
+$deviceScript = Join-Path $srcDir 'HotwmDevices.ps1'
+if (Test-Path $deviceScript) { . $deviceScript }
 
 if (-not (Test-Path $xamlPath)) {
     throw "XAML file not found at: $xamlPath"
@@ -261,9 +266,9 @@ class HotwmGameProfile {
 $script:gameProfileList = [System.Collections.ObjectModel.ObservableCollection[HotwmGameProfile]]::new()
 
 function Load-HotwmConfig {
-    if (-not (Test-Path $configPath)) { return }
+    if (-not (Test-Path $script:configPath)) { return }
     try {
-        $raw = Get-Content -LiteralPath $configPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        $raw = Get-Content -LiteralPath $script:configPath -Raw -Encoding UTF8 | ConvertFrom-Json
         if ($raw.global) {
             $controls.SliderHoldMs.Value = [double]$raw.global.hold_ms
             $controls.TextHoldMsValue.Text = "$($raw.global.hold_ms) ms"
@@ -290,29 +295,42 @@ function Load-HotwmConfig {
     }
 }
 
+function Build-HotwmConfigUpdates {
+    param([System.Collections.IDictionary]$GlobalChanges, [object[]]$GameChanges)
+    $games = [ordered]@{}
+    foreach ($change in $GameChanges) {
+        $games[$change.Name] = [ordered]@{
+            rumble = [bool]$change.Rumble
+            leds = [bool]$change.Leds
+        }
+    }
+    return [ordered]@{ global = $GlobalChanges; games = $games }
+}
+
 function Save-HotwmConfig {
     try {
-        $cfg = [ordered]@{
-            global = [ordered]@{
-                hold_ms        = [int]$controls.SliderHoldMs.Value
-                ammo_drop_shot = [bool]$controls.ChkAmmoDrop.IsChecked
-                led_mode       = if ($controls.ChkLedLifeBar.IsChecked) { "life_bar" } else { "none" }
-                trace_enabled  = [bool]$controls.ChkTraceLog.IsChecked
-            }
-            games = [ordered]@{}
+        if (-not (Test-Path -LiteralPath $script:configPath -PathType Leaf)) { throw "Configuration file not found: $script:configPath" }
+        $globalChanges = [ordered]@{
+            hold_ms = [int]$controls.SliderHoldMs.Value
+            ammo_drop_shot = [bool]$controls.ChkAmmoDrop.IsChecked
+            led_mode = if ($controls.ChkLedLifeBar.IsChecked) { 'life_bar' } else { 'none' }
+            trace_enabled = [bool]$controls.ChkTraceLog.IsChecked
         }
-
-        foreach ($p in $script:gameProfileList) {
-            $cfg.games[$p.Name] = [ordered]@{
-                rumble = [bool]$p.Rumble
-                leds   = [bool]$p.Leds
-            }
+        $updates = Build-HotwmConfigUpdates -GlobalChanges $globalChanges -GameChanges @($script:gameProfileList)
+        $action = Update-HotwmJsonFileAction -Path $script:configPath -Updates $updates -Explanation 'Update hotwm recoil and game profile settings while preserving other configuration fields.'
+        $result = Invoke-HotwmFileAction -Action $action -Confirm {
+            param($proposal)
+            $gamePreview = ($script:gameProfileList | ForEach-Object { "$($_.Name): rumble=$($_.Rumble), LEDs=$($_.Leds)" }) -join "`n"
+            $preview = "hold_ms: $($updates.global.hold_ms)`nammo_drop_shot: $($updates.global.ammo_drop_shot)`nled_mode: $($updates.global.led_mode)`ntrace_enabled: $($updates.global.trace_enabled)`ngames:`n$gamePreview"
+            $message = "Save these settings to:`n$($proposal.TargetPath)`n`n$preview`n`nOther existing fields are retained. A backup is created before writing.`n`nProceed?"
+            [System.Windows.MessageBox]::Show($message, 'Confirm configuration save', [System.Windows.MessageBoxButton]::YesNo, [System.Windows.MessageBoxImage]::Question) -eq [System.Windows.MessageBoxResult]::Yes
         }
-
-        $json = $cfg | ConvertTo-Json -Depth 5
-        [System.IO.File]::WriteAllText($configPath, $json, [System.Text.Encoding]::UTF8)
-
-        $controls.TextConfigSaveStatus.Text = "Saved! Live reloaded in < 1s."
+        if (-not $result.Success) {
+            $controls.TextConfigSaveStatus.Text = 'Save cancelled; no changes made.'
+            $controls.TextConfigSaveStatus.Foreground = $brushYellow
+            return
+        }
+        $controls.TextConfigSaveStatus.Text = "Saved with backup. Changes hot-reload in < 1s."
         $controls.TextConfigSaveStatus.Foreground = $brushGreen
 
         # Reset message after 3 seconds
@@ -324,17 +342,119 @@ function Save-HotwmConfig {
         })
         $clearTimer.Start()
     } catch {
-        $controls.TextConfigSaveStatus.Text = "Error saving: $_"
+        $controls.TextConfigSaveStatus.Text = "Save failed; configuration unchanged where possible: $_"
         $controls.TextConfigSaveStatus.Foreground = $brushRed
     }
 }
 
+function Confirm-HotwmOperation {
+    param([string]$Title, [string]$Effect)
+    return ([System.Windows.MessageBox]::Show($Effect, $Title, [System.Windows.MessageBoxButton]::YesNo, [System.Windows.MessageBoxImage]::Warning) -eq [System.Windows.MessageBoxResult]::Yes)
+}
+
+function Invoke-HotwmKitStatusQuery {
+    param([string]$Root, [scriptblock]$Query)
+    if ($Query) { return (& $Query $Root) }
+    return Get-HotwmSystemStatus -RetroBatRoot $Root
+}
+
+$validateFolderAction = {
+    $setupState.RetroBatRoot = $null
+    $setupState.Root = $null
+    $candidate = [string]$controls.TextSetupFolder.Text
+    if ([string]::IsNullOrWhiteSpace($candidate) -or -not (Test-Path -LiteralPath $candidate -PathType Container)) {
+        $controls.TextSetupFolderStatus.Text = 'Folder not found. Choose an existing RetroBat installation folder.'
+        $controls.TextSetupFolderStatus.Foreground = $brushRed
+        return $false
+    }
+    try {
+        $candidate = [System.IO.Path]::GetFullPath($candidate)
+        $entries = @(Get-ChildItem -LiteralPath $candidate -Force -ErrorAction Stop | Select-Object -ExpandProperty Name)
+        $markers = @('retrobat.exe', 'retrobat.ini', 'system', 'roms', 'bios')
+        $foundMarkers = @($markers | Where-Object { $entries -contains $_ -or $entries -contains $_.ToUpperInvariant() })
+        if ($foundMarkers.Count -eq 0) {
+            $controls.TextSetupFolderStatus.Text = "Folder is accessible, but its layout is not recognized as a RetroBat installation: $candidate"
+            $controls.TextSetupFolderStatus.Foreground = $brushYellow
+            $setupState.Root = $candidate
+            return $true
+        }
+        $controls.TextSetupFolder.Text = $candidate
+        $setupState.Root = $candidate
+        $setupState.RetroBatRoot = $candidate
+        $controls.TextSetupFolderStatus.Text = "RetroBat folder candidate found (markers: $($foundMarkers -join ', ')). Inspection is read-only; this does not confirm Hotwm readiness."
+        $controls.TextSetupFolderStatus.Foreground = $brushGreen
+        return $true
+    } catch {
+        $controls.TextSetupFolderStatus.Text = "Folder could not be inspected: $($_.Exception.Message)"
+        $controls.TextSetupFolderStatus.Foreground = $brushRed
+        return $false
+    }
+}.GetNewClosure()
+function Update-HotwmDiscoveryView {
+    $controls.ListDiscoveredDevices.Items.Clear()
+    if (-not (Get-Command Get-HotwmDeviceDiscovery -ErrorAction SilentlyContinue)) {
+        $controls.TextDiscoveryStatus.Text = 'Discovery module unavailable; PnP presence alone cannot confirm a playable Wiimote.'
+        $controls.ListDiscoveredDevices.Items.Add('No device identity or player mapping was confirmed.') | Out-Null
+        return
+    }
+    try {
+        $discovery = Get-HotwmDeviceDiscovery
+        $devices = @($discovery.Devices)
+        if ($devices.Count -eq 0) {
+            $controls.TextDiscoveryStatus.Text = if ($discovery.Detected) { 'Candidates detected, but no stable device records were confirmed.' } else { 'No supported device records found.' }
+            $controls.ListDiscoveredDevices.Items.Add([string]$discovery.Message) | Out-Null
+            return
+        }
+        foreach ($device in $devices) {
+            $macText = if ($device.Mac -and $device.IdentityConfirmed) { [string]$device.Mac } else { 'Bluetooth identity unconfirmed' }
+            $playerText = if ($device.MappingConfirmed -and $device.Player) { [string]$device.Player } else { 'Player unassigned' }
+            $calibration = if ($device.ManuallyCalibrated) { 'manual calibration recorded' } else { 'manual calibration needed' }
+            $targetTest = if ($device.Tested) { 'target test recorded' } else { 'per-player target test needed' }
+            $instanceText = if ($controls.RadioExpertMode.IsChecked) { " — instance: $($device.InstanceId)" } else { "" }
+            $controls.ListDiscoveredDevices.Items.Add("Candidate: $($device.DisplayName) — $macText — $playerText — $calibration — $targetTest$instanceText") | Out-Null
+        }
+        $controls.TextDiscoveryStatus.Text = "Read-only discovery: $($devices.Count) record(s). Verify identity and mapping manually; this is not a playable status."
+    } catch {
+        $controls.TextDiscoveryStatus.Text = "Discovery failed: $($_.Exception.Message)"
+        $controls.ListDiscoveredDevices.Items.Add('No discovery result is available; retry after checking Windows device access.') | Out-Null
+    }
+}
+
+$controls.TextSetupFolder.Text = ''
+$controls.BtnBrowseSetupFolder.Add_Click({
+    try {
+        Add-Type -AssemblyName System.Windows.Forms
+        $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
+        $dialog.Description = 'Select the hotwm setup folder'
+        if (Test-Path -LiteralPath $controls.TextSetupFolder.Text -PathType Container) { $dialog.SelectedPath = $controls.TextSetupFolder.Text }
+        if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { $controls.TextSetupFolder.Text = $dialog.SelectedPath }
+    } catch {
+        $controls.TextSetupFolderStatus.Text = "Folder picker unavailable: $($_.Exception.Message)"
+        $controls.TextSetupFolderStatus.Foreground = $brushRed
+    }
+})
+$validateFolderClick = { [void](& $validateFolderAction) }.GetNewClosure()
+$controls.BtnValidateSetupFolder.Add_Click($validateFolderClick)
+
+$controls.BtnRefreshDiscovery.Add_Click({ Update-HotwmDiscoveryView })
+$kitStatusQuery = { param([scriptblock]$Query) if ($Query) { & $Query $setupState.RetroBatRoot } else { Get-HotwmSystemStatus -RetroBatRoot $setupState.RetroBatRoot } }.GetNewClosure()
+$modeChanged = {
+    $controls.TextQuickModeDetail.Visibility = if ($controls.RadioQuickMode.IsChecked) { [System.Windows.Visibility]::Visible } else { [System.Windows.Visibility]::Collapsed }
+    $controls.TextCustomModeDetail.Visibility = if ($controls.RadioCustomMode.IsChecked) { [System.Windows.Visibility]::Visible } else { [System.Windows.Visibility]::Collapsed }
+    $controls.TextExpertModeDetail.Visibility = if ($controls.RadioExpertMode.IsChecked) { [System.Windows.Visibility]::Visible } else { [System.Windows.Visibility]::Collapsed }
+    if ($controls.RadioExpertMode.IsChecked) { $controls.TextExpertModeDetail.Text = "Expert details — target: $($controls.TextSetupFolder.Text)`nRaw device instance IDs are shown in discovery rows while Expert is selected. Device presence alone never sets playable status." }
+}
+$modeChanged = $modeChanged.GetNewClosure()
+$controls.RadioQuickMode.Add_Checked($modeChanged)
+$controls.RadioCustomMode.Add_Checked($modeChanged)
+$controls.RadioExpertMode.Add_Checked($modeChanged)
+& $modeChanged
 # 6. Event Wiring
 # Slider change
 $controls.SliderHoldMs.Add_ValueChanged({
     $val = [int]$controls.SliderHoldMs.Value
     $controls.TextHoldMsValue.Text = "$val ms"
-})
+}.GetNewClosure())
 
 # Save Button
 $controls.BtnSaveConfig.Add_Click({
@@ -349,7 +469,7 @@ $controls.BtnRefreshStatus.Add_Click({
 # Header Start Relay
 $controls.BtnHeaderStartRelay.Add_Click({
     $startScript = Join-Path $toolsDir "Start-HotwmRelay.ps1"
-    if (Test-Path $startScript) {
+    if ((Test-Path $startScript) -and (Confirm-HotwmOperation -Title 'Start hotwm relay' -Effect "Start the hotwm Python relay as a background process using:`n$startScript`n`nThe relay will listen locally for recoil and test commands.")) {
         Start-Process powershell -ArgumentList "-ExecutionPolicy Bypass -NoProfile -File `"$startScript`" -Background" -WindowStyle Hidden
         Start-Sleep -Milliseconds 600
         Update-DashboardStatus
@@ -360,6 +480,9 @@ $controls.BtnHeaderStartRelay.Add_Click({
 $controls.BtnHeaderStopRelay.Add_Click({
     $procs = Get-CimInstance Win32_Process -Filter "Name LIKE 'python%.exe'" -ErrorAction SilentlyContinue |
         Where-Object { $_.CommandLine -like "*hotwm_relay.py*" }
+    if (-not $procs) { return }
+    $pidList = ($procs | ForEach-Object { $_.ProcessId }) -join ', '
+    if (-not (Confirm-HotwmOperation -Title 'Stop hotwm relay' -Effect "Force-stop the hotwm_relay.py process(es) with PID(s): $pidList`n`nActive recoil handling will stop.")) { return }
     foreach ($p in $procs) {
         Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
     }
@@ -370,7 +493,7 @@ $controls.BtnHeaderStopRelay.Add_Click({
 # Task Install / Uninstall
 $controls.BtnInstallTask.Add_Click({
     $installScript = Join-Path $toolsDir "Install-HotwmTask.ps1"
-    if (Test-Path $installScript) {
+    if ((Test-Path $installScript) -and (Confirm-HotwmOperation -Title 'Install Windows task' -Effect "Run the task installer:`n$installScript`n`nThis registers or updates the Gunmote Recoil Stretch scheduled task.")) {
         & $installScript
         Update-DashboardStatus
     }
@@ -378,7 +501,7 @@ $controls.BtnInstallTask.Add_Click({
 
 $controls.BtnUninstallTask.Add_Click({
     $uninstallScript = Join-Path $toolsDir "Uninstall-HotwmTask.ps1"
-    if (Test-Path $uninstallScript) {
+    if ((Test-Path $uninstallScript) -and (Confirm-HotwmOperation -Title 'Remove Windows task' -Effect "Run the task removal script:`n$uninstallScript`n`nThis unregisters the Gunmote Recoil Stretch scheduled task.")) {
         & $uninstallScript
         Update-DashboardStatus
     }
@@ -387,7 +510,7 @@ $controls.BtnUninstallTask.Add_Click({
 # Query Kit
 $controls.BtnQueryKit.Add_Click({
     if (Get-Command Get-HotwmSystemStatus -ErrorAction SilentlyContinue) {
-        $res = Get-HotwmSystemStatus
+        $res = & $kitStatusQuery
         if ($res.Success) {
             [System.Windows.MessageBox]::Show("Kit reports status:`n$($res.Data | ConvertTo-Json -Depth 3)", "Retro Cabinet Kit Status", [System.Windows.MessageBoxButton]::OK, [System.Windows.MessageBoxImage]::Information)
         } else {
@@ -449,7 +572,7 @@ $controls.BtnTestP1Rumble.Add_Click({
     $controls.TextTestFeedback.Text = "Sending P1 Rumble Kick..."
     $res = Send-HotwmSocketCommand -Command "CMD_TEST_P1_RUMBLE"
     if ($res.Success) {
-        $controls.TextTestFeedback.Text = "P1 Recoil Triggered (150ms kick sent)"
+        $controls.TextTestFeedback.Text = 'P1 recoil command sent to relay; hardware effect unconfirmed.'
         $controls.TextTestFeedback.Foreground = $brushGreen
     } else {
         $controls.TextTestFeedback.Text = "Failed: $($res.Response)"
@@ -461,7 +584,7 @@ $controls.BtnTestP2Rumble.Add_Click({
     $controls.TextTestFeedback.Text = "Sending P2 Rumble Kick..."
     $res = Send-HotwmSocketCommand -Command "CMD_TEST_P2_RUMBLE"
     if ($res.Success) {
-        $controls.TextTestFeedback.Text = "P2 Recoil Triggered (150ms kick sent)"
+        $controls.TextTestFeedback.Text = 'P2 recoil command sent to relay; hardware effect unconfirmed.'
         $controls.TextTestFeedback.Foreground = $brushGreen
     } else {
         $controls.TextTestFeedback.Text = "Failed: $($res.Response)"
@@ -473,7 +596,7 @@ $controls.BtnTestP1Leds.Add_Click({
     $controls.TextTestFeedback.Text = "Cycling P1 LEDs..."
     $res = Send-HotwmSocketCommand -Command "CMD_TEST_P1_LEDS"
     if ($res.Success) {
-        $controls.TextTestFeedback.Text = "P1 LEDs Cycled (1 -> 4)"
+        $controls.TextTestFeedback.Text = 'P1 LED cycle command sent to relay; hardware effect unconfirmed.'
         $controls.TextTestFeedback.Foreground = $brushCyan
     } else {
         $controls.TextTestFeedback.Text = "Failed: $($res.Response)"
@@ -485,7 +608,7 @@ $controls.BtnTestP2Leds.Add_Click({
     $controls.TextTestFeedback.Text = "Cycling P2 LEDs..."
     $res = Send-HotwmSocketCommand -Command "CMD_TEST_P2_LEDS"
     if ($res.Success) {
-        $controls.TextTestFeedback.Text = "P2 LEDs Cycled (1 -> 4)"
+        $controls.TextTestFeedback.Text = 'P2 LED cycle command sent to relay; hardware effect unconfirmed.'
         $controls.TextTestFeedback.Foreground = $brushCyan
     } else {
         $controls.TextTestFeedback.Text = "Failed: $($res.Response)"
@@ -509,6 +632,7 @@ $controls.BtnPingRelay.Add_Click({
 # Same file the relay writes (hotwm_relay.py TRACE_LOG: the repo folder above src\)
 $traceLogPath = Join-Path $repoDir "recoil-stretch-trace.log"
 $controls.BtnClearLog.Add_Click({
+    if (-not (Confirm-HotwmOperation -Title 'Clear hotwm trace log' -Effect "Delete all contents of:`n$traceLogPath`n`nThis cannot be undone.")) { return }
     $controls.TextLogOutput.Text = ""
     if (Test-Path $traceLogPath) {
         try { [System.IO.File]::WriteAllText($traceLogPath, "") } catch {}
@@ -568,13 +692,16 @@ Update-DashboardStatus
 $window.Add_Closed({
     $statusTimer.Stop()
     $logTimer.Stop()
-})
+}.GetNewClosure())
 
 $result = [pscustomobject]@{
     Window   = $window
     Controls = $controls
-    Config   = $configPath
+    Config   = $script:configPath
     TraceLog = $traceLogPath
+    ConfigMerge = ${function:Build-HotwmConfigUpdates}
+    ValidateFolder = $validateFolderAction
+    KitStatus = $kitStatusQuery
 }
 
 if ($NoShow) {
