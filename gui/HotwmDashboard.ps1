@@ -28,6 +28,7 @@ $repoDir = Split-Path -Parent $guiDir
 $xamlPath = Join-Path $guiDir "HotwmDashboard.xaml"
 $script:configPath = Join-Path $repoDir "config\hotw.json"
 $setupState = [pscustomobject]@{ RetroBatRoot = $null; Root = $null }
+$wizardState = [pscustomobject]@{ Session = $null; Root = $null; LastImport = $null; Render = $null; Checklist = $null; SelectedDeviceKey = $null; SuppressModeChange = $false }
 $toolsDir = Join-Path $repoDir "tools"
 $srcDir = Join-Path $repoDir "src"
 
@@ -40,6 +41,7 @@ $setupCoreScript = Join-Path $srcDir 'HotwmSetup.ps1'
 if (Test-Path $setupCoreScript) { . $setupCoreScript }
 $deviceScript = Join-Path $srcDir 'HotwmDevices.ps1'
 if (Test-Path $deviceScript) { . $deviceScript }
+$wizardScript = Join-Path $srcDir 'HotwmWizard.ps1'
 $profileScript = Join-Path $srcDir 'HotwmProfiles.ps1'
 if (Test-Path $profileScript) { . $profileScript }
 $gunmoteScript = Join-Path $srcDir 'HotwmGunmote.ps1'
@@ -362,6 +364,7 @@ function Invoke-HotwmKitStatusQuery {
 }
 
 $validateFolderAction = {
+    $previousRoot = $setupState.Root
     $setupState.RetroBatRoot = $null
     $setupState.Root = $null
     $candidate = [string]$controls.TextSetupFolder.Text
@@ -379,11 +382,19 @@ $validateFolderAction = {
             $controls.TextSetupFolderStatus.Text = "Folder is accessible, but its layout is not recognized as a RetroBat installation: $candidate"
             $controls.TextSetupFolderStatus.Foreground = $brushYellow
             $setupState.Root = $candidate
+            if ($wizardState -and $wizardState.Session -and -not [string]::Equals([string]$wizardState.Session.Root, $candidate, [StringComparison]::OrdinalIgnoreCase)) {
+                $wizardState.Session = $null
+                $controls.TextWizardStatus.Text = 'Folder changed. The previous session was discarded; start a new session for this folder.'
+            }
             return $true
         }
         $controls.TextSetupFolder.Text = $candidate
         $setupState.Root = $candidate
         $setupState.RetroBatRoot = $candidate
+        if ($wizardState -and $wizardState.Session -and -not [string]::Equals([string]$wizardState.Session.Root, $candidate, [StringComparison]::OrdinalIgnoreCase)) {
+            $wizardState.Session = $null
+            $controls.TextWizardStatus.Text = 'Folder changed. The previous session was discarded; start a new session for this folder.'
+        }
         $controls.TextSetupFolderStatus.Text = "RetroBat folder candidate found (markers: $($foundMarkers -join ', ')). Inspection is read-only; this does not confirm Hotwm readiness."
         $controls.TextSetupFolderStatus.Foreground = $brushGreen
         return $true
@@ -424,6 +435,7 @@ function Update-HotwmDiscoveryView {
 }
 
 $controls.TextSetupFolder.Text = ''
+$controls.CmbWizardPlayer.SelectedIndex = 0
 $controls.BtnBrowseSetupFolder.Add_Click({
     try {
         Add-Type -AssemblyName System.Windows.Forms
@@ -452,6 +464,187 @@ $controls.RadioQuickMode.Add_Checked($modeChanged)
 $controls.RadioCustomMode.Add_Checked($modeChanged)
 $controls.RadioExpertMode.Add_Checked($modeChanged)
 & $modeChanged
+$wizardDispatcher = {
+    param([string]$Operation, [object]$Argument)
+    try {
+        if (-not (Test-Path -LiteralPath $wizardScript -PathType Leaf)) { throw 'Guided setup module is unavailable.' }
+        $savedSessions = $script:HotwmWizardSessions
+        . $wizardScript
+        if ($savedSessions) { $script:HotwmWizardSessions = $savedSessions }
+        $controls.TextWizardStatus.Foreground = $brushGray
+        switch ($Operation) {
+            'Start' {
+                $root = if ($Argument -and $Argument.Root) { [string]$Argument.Root } else { [string]$setupState.Root }
+                if (-not $root -or -not (Test-Path -LiteralPath $root -PathType Container)) { throw 'Validate an existing setup folder first.' }
+                if (-not ($Argument -and $Argument.Root) -and -not [string]::Equals([System.IO.Path]::GetFullPath($root).TrimEnd('\','/'), [System.IO.Path]::GetFullPath([string]$controls.TextSetupFolder.Text).TrimEnd('\','/'), [StringComparison]::OrdinalIgnoreCase)) { throw 'The folder field changed after validation. Validate it again before starting a session.' }
+                $mode = if ($Argument -and $Argument.Mode) { [string]$Argument.Mode } elseif ($controls.RadioExpertMode.IsChecked) { 'Expert' } elseif ($controls.RadioCustomMode.IsChecked) { 'Custom' } else { 'Quick' }
+                $params = @{ Root=$root; Mode=$mode; ConfigPath=$script:configPath; Mappings=@() }
+                if ($Argument -and $Argument.Contains('DeviceRecords')) { $params.DeviceRecords = @($Argument.DeviceRecords) }
+                if ($Argument -and $Argument.Contains('DependencyRecords')) { $params.DependencyRecords = @($Argument.DependencyRecords) }
+                if ($Argument -and $Argument.SavedState) { $params.SavedState = $Argument.SavedState }
+                $hadSession = [bool]$wizardState.Session
+                $wizardState.Session = New-HotwmSetupSession @params
+                $wizardState.Root = $wizardState.Session.Root
+                $controls.TextWizardStatus.Text = if ($hadSession) { 'Neue Sitzung gestartet. Frühere Prüfungen gelten nicht weiter; wiederhole die manuellen Prüfungen.' } else { 'Sitzung gestartet. Die Erkennung ist nur lesend; Prüfungen erfordern deine eigene Beobachtung.' }
+            }
+            'Mode' {
+                if ($wizardState.Session) { $wizardState.Session.Mode = if ($Argument -and $Argument.Mode) { [string]$Argument.Mode } elseif ($controls.RadioExpertMode.IsChecked) { 'Expert' } elseif ($controls.RadioCustomMode.IsChecked) { 'Custom' } else { 'Quick' } }
+                if ($wizardState.Session) { $wizardState.Checklist = Get-HotwmSetupChecklist -Session $wizardState.Session }
+                return [pscustomobject]@{ Success=$true; Session=$wizardState.Session; Mode=if ($wizardState.Session) { $wizardState.Session.Mode } elseif ($controls.RadioExpertMode.IsChecked) { 'Expert' } elseif ($controls.RadioCustomMode.IsChecked) { 'Custom' } else { 'Quick' } }
+            }
+            'Assign' {
+                if (-not $wizardState.Session) { throw 'Start a setup session first.' }
+                $key = if ($Argument -and $Argument.DeviceKey) { [string]$Argument.DeviceKey } else { [string]$controls.CmbWizardDevice.SelectedValue }
+                $player = if ($Argument -and $Argument.Contains('Player')) { [int]$Argument.Player } else { [int]$controls.CmbWizardPlayer.SelectedItem.Tag }
+                if ($player -notin @(1,2)) { throw 'Choose Desired Player 1 or 2.' }
+                $device = Set-HotwmSessionPlayerAssignment -Session $wizardState.Session -DeviceKey $key -Player $player
+                $controls.TextWizardStatus.Text = "Gewünschter Spieler $player zugewiesen. Der beobachtete Gunmote-Laufzeitplatz bleibt davon getrennt."
+                $wizardState.Checklist = Get-HotwmSetupChecklist -Session $wizardState.Session
+                $null = & $wizardState.Render
+                return [pscustomobject]@{ Success=$true; Device=$device; Session=$wizardState.Session }
+            }
+            { $_ -in @('RuntimeSlot','Calibration','Aim','Trigger') } {
+                if (-not $wizardState.Session) { throw 'Start a setup session first.' }
+                $check = if ($Operation -eq 'RuntimeSlot') { 'RuntimeSlot' } else { $Operation }
+                $key = if ($Argument -and $Argument.DeviceKey) { [string]$Argument.DeviceKey } else { [string]$controls.CmbWizardDevice.SelectedValue }
+                $selectedDevice = @($wizardState.Session.Devices | Where-Object DeviceKey -CEQ $key) | Select-Object -First 1
+                $callback = if ($Argument -and $Argument.Confirm) { $Argument.Confirm } else {
+                    $display = if ($selectedDevice) { [string]$selectedDevice.DisplayName } else { 'Controller' }
+                    $playerText = if ($selectedDevice -and $selectedDevice.DesiredPlayer) { "Spieler $($selectedDevice.DesiredPlayer)" } else { 'nicht zugewiesen' }
+                    $slot = if ($controls.CmbWizardRuntimeSlot.SelectedItem) { [int]$controls.CmbWizardRuntimeSlot.SelectedItem.Tag } else { 0 }
+                    if ($check -eq 'RuntimeSlot' -and $slot -notin @(1,2)) { throw 'Wähle zuerst den beobachteten Gunmote-Platz 1 oder 2 aus.' }
+                    $checkText = switch ($check) { 'RuntimeSlot' { "Hast du den physischen Controller erkannt und seinen Gunmote-Laufzeitplatz $slot beobachtet?" }; 'Calibration' { 'Hast du diesen Controller manuell kalibriert?' }; 'Aim' { 'Hast du die Zielbewegung dieses Controllers an einem Ziel geprüft?' }; 'Trigger' { 'Hast du den Abzug gedrückt und die Reaktion am Ziel geprüft?' } }
+                    { param($prompt,$device) if (Confirm-HotwmOperation -Title 'Selbst durchgeführte Prüfung bestätigen' -Effect "$checkText`n`nGerät: $display`nGewünschter Spieler: $playerText`n`nDies speichert nur deine manuelle Bestätigung. Hotwm koppelt und kalibriert den Controller nicht automatisch.") { if ($check -eq 'RuntimeSlot') { return [pscustomobject]@{ Confirmed=$true; RuntimeSlot=$slot } }; return $true }; return $false }.GetNewClosure()
+                }
+                $entry = Confirm-HotwmSetupObservation -Session $wizardState.Session -DeviceKey $key -Check $check -ConfirmationCallback $callback
+                $controls.TextWizardStatus.Text = "Deine Bestätigung ($check) wurde für diese Verbindungssitzung erfasst. Sie wurde nicht unabhängig geprüft."
+                $wizardState.Checklist = Get-HotwmSetupChecklist -Session $wizardState.Session
+                $null = & $wizardState.Render
+                return [pscustomobject]@{ Success=$true; Confirmation=$entry; Session=$wizardState.Session }
+            }
+            'Refresh' {
+                if (-not $wizardState.Session) { throw 'Start a setup session first.' }
+                if ($Argument -and $Argument.Contains('DeviceRecords')) { $null = Refresh-HotwmSetupSession -Session $wizardState.Session -DeviceRecords @($Argument.DeviceRecords) }
+                else { $null = Refresh-HotwmSetupSession -Session $wizardState.Session }
+                $controls.TextWizardStatus.Text = 'Verbindung aktualisiert. Frühere Bestätigungen sind veraltet; wiederhole jede manuelle Prüfung.'
+                $wizardState.Checklist = Get-HotwmSetupChecklist -Session $wizardState.Session
+                $null = & $wizardState.Render
+                return [pscustomobject]@{ Success=$true; Session=$wizardState.Session }
+            }
+            'Import' {
+                $root = if ($Argument -and $Argument.Root) { [string]$Argument.Root } else { [string]$setupState.Root }
+                if (-not $root) { throw 'Validate a setup folder before importing history.' }
+                $path = if ($Argument -and $Argument.Path) { [string]$Argument.Path } else { Join-Path $root '.hotwm-setup.json' }
+                $saved = Import-HotwmSetupState -Path $path -Root $root
+                $params = @{ Root=$root; Mode=[string]$saved.Mode; ConfigPath=$script:configPath; SavedState=$saved; Mappings=@() }
+                if ($Argument -and $Argument.Contains('DeviceRecords')) { $params.DeviceRecords = @($Argument.DeviceRecords) }
+                if ($Argument -and $Argument.Contains('DependencyRecords')) { $params.DependencyRecords = @($Argument.DependencyRecords) }
+                $wizardState.SuppressModeChange = $true
+                try {
+                    $controls.RadioQuickMode.IsChecked = ([string]$saved.Mode -eq 'Quick')
+                    $controls.RadioCustomMode.IsChecked = ([string]$saved.Mode -eq 'Custom')
+                    $controls.RadioExpertMode.IsChecked = ([string]$saved.Mode -eq 'Expert')
+                    $wizardState.Session = New-HotwmSetupSession @params
+                } finally { $wizardState.SuppressModeChange = $false }
+                $wizardState.Root = $wizardState.Session.Root
+                $wizardState.LastImport = $saved
+                $controls.TextWizardStatus.Text = 'Spielerzuordnungen und frühere Hinweise importiert. Alte Prüfungen gelten nicht; wiederhole sie in dieser Sitzung.'
+                $wizardState.Checklist = Get-HotwmSetupChecklist -Session $wizardState.Session
+                $null = & $wizardState.Render
+                return [pscustomobject]@{ Success=$true; Imported=$saved; Session=$wizardState.Session }
+            }
+            'Save' {
+                if (-not $wizardState.Session) { throw 'Start a setup session first.' }
+                $visibleRoot = [string]$controls.TextSetupFolder.Text
+                if (-not $visibleRoot -or -not [string]::Equals([System.IO.Path]::GetFullPath($visibleRoot).TrimEnd('\','/'), [System.IO.Path]::GetFullPath([string]$wizardState.Session.Root).TrimEnd('\','/'), [StringComparison]::OrdinalIgnoreCase)) { throw 'The selected folder changed after this session began. Validate the folder and start a new session before saving.' }
+                $path = if ($Argument -and $Argument.Path) { [string]$Argument.Path } else { Join-Path $wizardState.Session.Root '.hotwm-setup.json' }
+                $action = New-HotwmSetupSessionAction -Session $wizardState.Session -Path $path
+                $mappingText = if ($wizardState.Session.Mappings.Count) { ($wizardState.Session.Mappings | ForEach-Object { "$($_.Mac) → gewünschter Spieler $($_.Player)" }) -join "`n" } else { 'Keine dauerhafte MAC-Zuordnung; sitzungsgebundene Zuordnungen werden nicht gespeichert.' }
+                $proposedState = ConvertFrom-Json -InputObject $action.ProposedContent
+                $historyCount = @($proposedState.HistoricalConfirmations).Count
+                $summary = "Gewünschte Spielerzuordnungen und $historyCount frühere Prüfnotiz(en) nach $($action.TargetPath) speichern? Frühere Prüfungen bestätigen keine aktuelle Einsatzbereitschaft."
+                $confirm = if ($Argument -and $Argument.Confirm) { $Argument.Confirm } else {
+                    $display = "$summary`n`n$mappingText"; $content = $action.ProposedContent; $target = $action.TargetPath
+                    { param($proposal) Show-HotwmReviewedFileProposal -Title 'Setup-Verlauf prüfen' -TargetPath $target -Content $content -Effect $display }.GetNewClosure()
+                }
+                $result = Invoke-HotwmFileAction -Action $action -Confirm $confirm
+                $controls.TextWizardStatus.Text = if ($result.Success) { 'Setup-Verlauf gespeichert. Aktuelle Prüfungen bleiben unbestätigte Nutzeraussagen.' } else { 'Speichern abgebrochen; die Verlaufsdatei wurde nicht geändert.' }
+                return [pscustomobject]@{ Success=$result.Success; Action=$action; Result=$result; Session=$wizardState.Session }
+            }
+            'Render' { if ($wizardState.Session) { $wizardState.Checklist = Get-HotwmSetupChecklist -Session $wizardState.Session }; return (& $wizardState.Render) }
+            default { throw "Unknown setup wizard operation: $Operation" }
+        }
+        if ($wizardState.Session) { $wizardState.Checklist = Get-HotwmSetupChecklist -Session $wizardState.Session }
+        $null = & $wizardState.Render
+        return [pscustomobject]@{ Success=$true; Session=$wizardState.Session }
+    } catch {
+        $controls.TextWizardStatus.Text = "Einrichtung: $($_.Exception.Message)"
+        $controls.TextWizardStatus.Foreground = $brushRed
+        return [pscustomobject]@{ Success=$false; Message=$_.Exception.Message; Session=$wizardState.Session }
+    }
+}.GetNewClosure()
+$renderWizard = {
+    $session = $wizardState.Session
+    $selectedDeviceKey = if ($wizardState.SelectedDeviceKey) { [string]$wizardState.SelectedDeviceKey } else { [string]$controls.CmbWizardDevice.SelectedValue }
+    $controls.CmbWizardDevice.ItemsSource = $null
+    $controls.ListWizardChecklist.Items.Clear()
+    if (-not $session) { return $null }
+    $devices = @($session.Devices | ForEach-Object {
+        $desired = if ($_.DesiredPlayer) { "gewünschter Spieler $($_.DesiredPlayer)" } else { 'Spieler nicht zugewiesen' }
+        $runtime = if ($_.RuntimeGunmoteSlot) { "Gunmote-Platz $($_.RuntimeGunmoteSlot) beobachtet" } else { 'Gunmote-Platz unbestätigt' }
+        $identity = if ($_.IdentityConfirmed -and $_.Mac) { [string]$_.Mac } else { 'Identität nicht bestätigt' }
+        [pscustomobject]@{ DeviceKey=$_.DeviceKey; Label=("{0} | {1} | {2} | {3}" -f $_.DisplayName, $identity, $desired, $runtime); Expert=("{0} | {1}" -f $_.Mac, $_.InstanceId) }
+    })
+    $controls.CmbWizardDevice.DisplayMemberPath = if ($controls.RadioExpertMode.IsChecked) { 'Expert' } else { 'Label' }
+    $controls.CmbWizardDevice.SelectedValuePath = 'DeviceKey'
+    $controls.CmbWizardDevice.ItemsSource = $devices
+    if ($devices.Count -gt 0) {
+        $matchingDevice = @($devices | Where-Object DeviceKey -CEQ $selectedDeviceKey) | Select-Object -First 1
+        if ($matchingDevice) { $controls.CmbWizardDevice.SelectedValue = $selectedDeviceKey }
+        else { $controls.CmbWizardDevice.SelectedIndex = 0; $wizardState.SelectedDeviceKey = [string]$controls.CmbWizardDevice.SelectedValue }
+    } else { $wizardState.SelectedDeviceKey = $null }
+    $checklist = $wizardState.Checklist
+    foreach ($step in $checklist.Steps) {
+        if ($step.Type -eq 'ReadOnlyObservation') { foreach ($dep in $step.Items) { [void]$controls.ListWizardChecklist.Items.Add("Abhängigkeit $($dep.Name): $($dep.Status) — $($dep.Message)") }; continue }
+        if ($step.Type -eq 'UserAttestation') {
+            $device = @($session.Devices | Where-Object DeviceKey -CEQ $step.DeviceKey) | Select-Object -First 1
+            $deviceLabel = if ($controls.RadioExpertMode.IsChecked) { $step.DeviceKey } elseif ($device) { $device.DisplayName } else { 'Controller' }
+            $statusLabel = switch ($step.Status) {
+                'user-confirmed-current' { 'von dir bestätigt (aktuelle Sitzung)' }
+                'stale-retest-required' { 'veraltet — erneut prüfen' }
+                'historical-retest-required' { 'früher notiert — erneut prüfen' }
+                default { 'noch nicht geprüft' }
+            }
+            $checkLabel = switch ($step.Check) { 'RuntimeSlot' { 'Laufzeitplatz' }; 'Calibration' { 'Kalibrierung' }; 'Aim' { 'Zieltest' }; 'Trigger' { 'Abzugstest' } }
+            [void]$controls.ListWizardChecklist.Items.Add("$deviceLabel — ${checkLabel}: $statusLabel")
+        }
+    }
+    $controls.TextWizardExpertDetails.Text = "Installationsordner: $($session.Root)`nKonfiguration: $($session.ConfigPath) [$($session.ConfigStatus)]`nVerbindungssitzung: $($session.ConnectionSnapshotId)`nEinsatzbereitschaft wird hier nicht bestätigt; Prüfungen sind nur manuelle Nutzeraussagen."
+    $controls.TextWizardExpertDetails.Visibility = if ($controls.RadioExpertMode.IsChecked) { [Windows.Visibility]::Visible } else { [Windows.Visibility]::Collapsed }
+    return $checklist
+}.GetNewClosure()
+$wizardState.Render = $renderWizard
+$controls.BtnStartWizard.Add_Click({ [void](& $wizardDispatcher 'Start' $null) }.GetNewClosure())
+$controls.BtnRefreshWizard.Add_Click({ [void](& $wizardDispatcher 'Refresh' $null) }.GetNewClosure())
+$controls.BtnAssignWizardPlayer.Add_Click({ [void](& $wizardDispatcher 'Assign' $null) }.GetNewClosure())
+$controls.BtnConfirmRuntimeSlot.Add_Click({ [void](& $wizardDispatcher 'RuntimeSlot' $null) }.GetNewClosure())
+$controls.BtnConfirmCalibration.Add_Click({ [void](& $wizardDispatcher 'Calibration' $null) }.GetNewClosure())
+$controls.BtnConfirmAim.Add_Click({ [void](& $wizardDispatcher 'Aim' $null) }.GetNewClosure())
+$controls.BtnConfirmTrigger.Add_Click({ [void](& $wizardDispatcher 'Trigger' $null) }.GetNewClosure())
+$controls.BtnImportWizardState.Add_Click({ [void](& $wizardDispatcher 'Import' $null) }.GetNewClosure())
+$controls.BtnSaveWizardState.Add_Click({ [void](& $wizardDispatcher 'Save' $null) }.GetNewClosure())
+$controls.CmbWizardDevice.Add_SelectionChanged({
+    $selected = $controls.CmbWizardDevice.SelectedItem
+    if ($selected -and $wizardState.Session) {
+        $wizardState.SelectedDeviceKey = [string]$selected.DeviceKey
+        $device = @($wizardState.Session.Devices | Where-Object DeviceKey -CEQ $selected.DeviceKey) | Select-Object -First 1
+        if ($device) { $controls.CmbWizardPlayer.SelectedIndex = if ($device.DesiredPlayer) { [int]$device.DesiredPlayer } else { 0 } }
+    }
+}.GetNewClosure())
+$wizardModeChanged = { if ($wizardState.Session -and -not $wizardState.SuppressModeChange) { [void](& $wizardDispatcher 'Mode' $null); [void](& $wizardState.Render) } }.GetNewClosure()
+$controls.RadioQuickMode.Add_Checked($wizardModeChanged)
+$controls.RadioCustomMode.Add_Checked($wizardModeChanged)
+$controls.RadioExpertMode.Add_Checked($wizardModeChanged)
 # Profile editor state is separate from shipped templates. The dispatcher reuses the same file-action transaction for each proposal.
 $profileState = [pscustomobject]@{ EffectTemplates = @(); ButtonTemplates = @(); ActiveEffect = $null; ActiveButtons = $null }
 $buildEffectProfile = {
@@ -671,7 +864,7 @@ $controls.BtnExportButtonProfile.Add_Click({
 }.GetNewClosure())
 
 function Show-HotwmReviewedFileProposal {
-    param([string]$Title, [string]$TargetPath, [string]$Content, [string]$Effect)
+    param([string]$Title, [string]$TargetPath, [string]$Content, [string]$Effect, [switch]$RequireGunmoteClosed)
     $dialog = New-Object System.Windows.Window
     $dialog.Title = $Title
     $dialog.Owner = $window
@@ -690,7 +883,8 @@ function Show-HotwmReviewedFileProposal {
     $summary = New-Object System.Windows.Controls.StackPanel
     [System.Windows.Controls.Grid]::SetRow($summary, 0)
     $targetText = New-Object System.Windows.Controls.TextBlock
-    $targetText.Text = "Target: $TargetPath`n$Effect`nGunmote must be closed after you approve. This does not select or activate the layout."
+    $guidance = if ($RequireGunmoteClosed) { "`nGunmote must be closed before this file change can be applied. This does not select or activate a layout." } else { '' }
+    $targetText.Text = "Target: $TargetPath`n$Effect$guidance"
     $targetText.TextWrapping = 'Wrap'
     $targetText.Margin = [System.Windows.Thickness]::new(0,0,0,10)
     [void]$summary.Children.Add($targetText)
@@ -848,7 +1042,7 @@ $gunmoteDispatcher = {
                 $summary = "Save the edited layout '$($layout.Title)' to $($action.TargetPath). This writes the file only; it will not select it or restart Gunmote."
                 $confirm = if ($Argument -and $Argument.Confirm) { $Argument.Confirm } else {
                     $display = $summary; $content = $action.ProposedContent; $target = $action.TargetPath
-                    { param($proposal) Show-HotwmReviewedFileProposal -Title 'Review Gunmote layout file' -TargetPath $target -Content $content -Effect $display }.GetNewClosure()
+                    { param($proposal) Show-HotwmReviewedFileProposal -Title 'Review Gunmote layout file' -TargetPath $target -Content $content -Effect $display -RequireGunmoteClosed }.GetNewClosure()
                 }
                 $checker = if ($Argument -and $Argument.ProcessChecker) { $Argument.ProcessChecker } else { $null }
                 $result = Invoke-HotwmGunmoteLayoutAction -Action $action -Confirm $confirm -ProcessChecker $checker
@@ -872,7 +1066,7 @@ $gunmoteDispatcher = {
                 $summary = "Add '$($gunmoteState.SavedLayoutTitle)' pointing to $($gunmoteState.SavedPath) in $($action.TargetPath). This does not select or activate the layout."
                 $confirm = if ($Argument -and $Argument.Confirm) { $Argument.Confirm } else {
                     $display = $summary; $content = $action.ProposedContent; $target = $action.TargetPath
-                    { param($proposal) Show-HotwmReviewedFileProposal -Title 'Review Gunmote chooser update' -TargetPath $target -Content $content -Effect $display }.GetNewClosure()
+                    { param($proposal) Show-HotwmReviewedFileProposal -Title 'Review Gunmote chooser update' -TargetPath $target -Content $content -Effect $display -RequireGunmoteClosed }.GetNewClosure()
                 }
                 $checker = if ($Argument -and $Argument.ProcessChecker) { $Argument.ProcessChecker } else { $null }
                 $result = Invoke-HotwmGunmoteChooserAction -Action $action -Confirm $confirm -ProcessChecker $checker
@@ -1178,6 +1372,8 @@ $result = [pscustomobject]@{
     ConfigMerge = ${function:Build-HotwmConfigUpdates}
     ProfileDispatch = $profileDispatcher
     GunmoteDispatch = $gunmoteDispatcher
+    WizardDispatch = $wizardDispatcher
+    WizardSession = $wizardState
     ValidateFolder = $validateFolderAction
     KitStatus = $kitStatusQuery
 }

@@ -63,6 +63,124 @@
         $script:ui.Controls.SliderHoldMs.Value | Should Be 190
     }
 
+    It 'exposes guided session controls and preserves one session across modes' {
+        foreach ($name in @('BtnStartWizard','BtnRefreshWizard','CmbWizardDevice','CmbWizardPlayer','CmbWizardRuntimeSlot','BtnAssignWizardPlayer','BtnConfirmRuntimeSlot','BtnConfirmCalibration','BtnConfirmAim','BtnConfirmTrigger','BtnImportWizardState','BtnSaveWizardState','ListWizardChecklist')) {
+            $script:ui.Controls[$name] | Should Not Be $null
+        }
+        $records = @([pscustomobject]@{ InstanceId='BTHENUM\DEV_001122334455\7&123&0&BLUETOOTHDEVICE_001122334455'; FriendlyName='Nintendo RVL-CNT-01'; Status='OK' })
+        $dependencies = @([pscustomobject]@{ Name='Python'; Status='detected'; Message='fixture only' })
+        $started = & $script:ui.WizardDispatch 'Start' @{ Root=$script:validTarget; Mode='Quick'; DeviceRecords=$records; DependencyRecords=$dependencies }
+        $started.Success | Should Be $true
+        $sessionId = $started.Session.SessionId
+        $started.Session.Ready | Should Be $false
+        & $script:ui.WizardDispatch 'Assign' @{ DeviceKey=$started.Session.Devices[0].DeviceKey; Player=1 } | Out-Null
+        $script:ui.Controls.RadioCustomMode.IsChecked = $true
+        $custom = & $script:ui.WizardDispatch 'Mode' $null
+        $custom.Session.SessionId | Should Be $sessionId
+        $custom.Session.Devices[0].DesiredPlayer | Should Be 1
+        $script:ui.Controls.RadioExpertMode.IsChecked = $true
+        $expert = & $script:ui.WizardDispatch 'Mode' $null
+        $expert.Session.SessionId | Should Be $sessionId
+        $expert.Session.Mode | Should Be 'Expert'
+        $script:ui.Controls.RadioQuickMode.IsChecked = $true
+        $quick = & $script:ui.WizardDispatch 'Mode' $null
+        $quick.Session.Devices[0].DesiredPlayer | Should Be 1
+    }
+
+    It 'rejects duplicate desired assignments without changing the existing mapping' {
+        $records = @(
+            [pscustomobject]@{ InstanceId='BTHENUM\DEV_001122334455\7&123&0&BLUETOOTHDEVICE_001122334455'; FriendlyName='Nintendo RVL-CNT-01 Player A'; Status='OK' },
+            [pscustomobject]@{ InstanceId='BTHENUM\DEV_001122334466\7&123&0&BLUETOOTHDEVICE_001122334466'; FriendlyName='Nintendo RVL-CNT-01 Player B'; Status='OK' }
+        )
+        $started = & $script:ui.WizardDispatch 'Start' @{ Root=$script:validTarget; Mode='Quick'; DeviceRecords=$records; DependencyRecords=@() }
+        $devices = @($started.Session.Devices)
+        $null = & $script:ui.WizardDispatch 'Assign' @{ DeviceKey=$devices[0].DeviceKey; Player=1 }
+        $failed = & $script:ui.WizardDispatch 'Assign' @{ DeviceKey=$devices[1].DeviceKey; Player=1 }
+        $failed.Success | Should Be $false
+        $started.Session.Devices[0].DesiredPlayer | Should Be 1
+        $started.Session.Devices[1].DesiredPlayer | Should Be $null
+    }
+
+    It 'keeps the second selected device through assignment and mode changes before checking it' {
+        $records = @(
+            [pscustomobject]@{ InstanceId='BTHENUM\DEV_001122334455\7&123&0&BLUETOOTHDEVICE_001122334455'; FriendlyName='Nintendo RVL-CNT-01 Player A'; Status='OK' },
+            [pscustomobject]@{ InstanceId='BTHENUM\DEV_001122334466\7&123&0&BLUETOOTHDEVICE_001122334466'; FriendlyName='Nintendo RVL-CNT-01 Player B'; Status='OK' }
+        )
+        $started = & $script:ui.WizardDispatch 'Start' @{ Root=$script:validTarget; Mode='Quick'; DeviceRecords=$records; DependencyRecords=@() }
+        $secondKey = $started.Session.Devices[1].DeviceKey
+        $script:ui.Controls.CmbWizardDevice.SelectedValue = $secondKey
+        $script:ui.Controls.CmbWizardPlayer.SelectedIndex = 2
+        $assigned = & $script:ui.WizardDispatch 'Assign' $null
+        $assigned.Success | Should Be $true
+        $script:ui.Controls.RadioExpertMode.IsChecked = $true
+        $null = & $script:ui.WizardDispatch 'Mode' $null
+        $script:ui.Controls.CmbWizardDevice.SelectedValue | Should Be $secondKey
+        $script:ui.Controls.CmbWizardDevice.SelectedItem.DeviceKey | Should Be $secondKey
+        $checked = & $script:ui.WizardDispatch 'RuntimeSlot' @{ Confirm={ param($prompt,$device) $device.DeviceKey | Should Be $secondKey; [pscustomobject]@{ Confirmed=$true; RuntimeSlot=2 } } }
+        $checked.Success | Should Be $true
+        $checked.Confirmation.DeviceKey | Should Be $secondKey
+        $assigned.Session.Devices[0].DesiredPlayer | Should Be $null
+        $assigned.Session.Devices[1].DesiredPlayer | Should Be 2
+    }
+
+    It 'blocks a save when the selected folder text changes after a session starts' {
+        $started = & $script:ui.WizardDispatch 'Start' @{ Root=$script:validTarget; Mode='Quick'; DeviceRecords=@(); DependencyRecords=@() }
+        $started.Success | Should Be $true
+        $script:ui.Controls.TextSetupFolder.Text = $script:unknownTarget
+        $save = & $script:ui.WizardDispatch 'Save' @{ Confirm={ throw 'Confirmation must not be reached for a stale folder.' } }
+        $save.Success | Should Be $false
+        $save.Message | Should Match 'folder changed|folder.*session|validate'
+        (Test-Path -LiteralPath (Join-Path $script:validTarget '.hotwm-setup.json')) | Should Be $false
+    }
+
+    It 'requires a real runtime-slot attestation before later checks and invalidates checks after refresh' {
+        $records = @([pscustomobject]@{ InstanceId='BTHENUM\DEV_001122334455\7&123&0&BLUETOOTHDEVICE_001122334455'; FriendlyName='Nintendo RVL-CNT-01'; Status='OK' })
+        $started = & $script:ui.WizardDispatch 'Start' @{ Root=$script:validTarget; Mode='Quick'; DeviceRecords=$records; DependencyRecords=@() }
+        $key = $started.Session.Devices[0].DeviceKey
+        $null = & $script:ui.WizardDispatch 'Assign' @{ DeviceKey=$key; Player=1 }
+        $blocked = & $script:ui.WizardDispatch 'Calibration' @{ DeviceKey=$key; Confirm={ return $true } }
+        $blocked.Success | Should Be $false
+        $runtime = & $script:ui.WizardDispatch 'RuntimeSlot' @{ DeviceKey=$key; Confirm={ param($prompt,$device) [pscustomobject]@{ Confirmed=$true; RuntimeSlot=1 } } }
+        $runtime.Success | Should Be $true
+        $calibrated = & $script:ui.WizardDispatch 'Calibration' @{ DeviceKey=$key; Confirm={ return $true } }
+        $calibrated.Success | Should Be $true
+        $refresh = & $script:ui.WizardDispatch 'Refresh' @{ DeviceRecords=$records }
+        $refresh.Success | Should Be $true
+        $checklist = & $script:ui.WizardDispatch 'Render' $null
+        @($checklist.Steps | Where-Object { $_.DeviceKey -eq $key -and $_.Check -eq 'RuntimeSlot' -and $_.Status -eq 'stale-retest-required' }).Count | Should Be 1
+        $refresh.Session.Ready | Should Be $false
+    }
+
+    It 'imports old observations only as history and leaves declined save untouched' {
+        $script:ui.Controls.TextSetupFolder.Text = $script:validTarget
+        $script:ui.Controls.BtnValidateSetupFolder.RaiseEvent(([System.Windows.RoutedEventArgs]::new([System.Windows.Controls.Button]::ClickEvent)))
+        $records = @([pscustomobject]@{ InstanceId='BTHENUM\DEV_001122334455\7&123&0&BLUETOOTHDEVICE_001122334455'; FriendlyName='Nintendo RVL-CNT-01'; Status='OK' })
+        $statePath = Join-Path $script:validTarget '.hotwm-setup.json'
+        $fixture = [ordered]@{ SchemaVersion=1; Root=[IO.Path]::GetFullPath($script:validTarget); Mode='Custom'; DesiredMappings=@([ordered]@{ Mac='00:11:22:33:44:55'; Player=1 }); HistoricalConfirmations=@([ordered]@{ DeviceMac='00:11:22:33:44:55'; DesiredPlayer=1; RuntimeGunmoteSlot=2; Check='RuntimeSlot'; ConfirmedAtUtc='2020-01-01T00:00:00Z' }); SavedAtUtc='2020-01-01T00:00:00Z' }
+        [IO.File]::WriteAllText($statePath, (ConvertTo-Json -InputObject $fixture -Depth 10), [Text.Encoding]::UTF8)
+        try {
+            $imported = & $script:ui.WizardDispatch 'Import' @{ Root=$script:validTarget; DeviceRecords=$records; DependencyRecords=@() }
+            $imported.Success | Should Be $true
+            $imported.Session.Devices[0].DesiredPlayer | Should Be 1
+            $script:ui.Controls.RadioCustomMode.IsChecked | Should Be $true
+            $script:ui.Controls.RadioExpertMode.IsChecked | Should Be $false
+            $check = & $script:ui.WizardDispatch 'Render' $null
+            @($check.Steps | Where-Object { $_.Check -eq 'RuntimeSlot' -and $_.Status -eq 'historical-retest-required' }).Count | Should Be 1
+            $key = $imported.Session.Devices[0].DeviceKey
+            $runtime = & $script:ui.WizardDispatch 'RuntimeSlot' @{ DeviceKey=$key; Confirm={ param($prompt,$device) [pscustomobject]@{ Confirmed=$true; RuntimeSlot=1 } } }
+            $runtime.Success | Should Be $true
+            $script:receivedWizardProposal = $null
+            $declined = & $script:ui.WizardDispatch 'Save' @{ Confirm={ param($proposal) $script:receivedWizardProposal = $proposal; return $false } }
+            $declined.Success | Should Be $false
+            $declined.Action.TargetPath | Should Be $statePath
+            $script:receivedWizardProposal.TargetPath | Should Be $statePath
+            ($script:receivedWizardProposal.ProposedContent | ConvertFrom-Json).HistoricalConfirmations.Count | Should Be 2
+            $persistedStamp = (Get-Content -LiteralPath $statePath -Raw -Encoding UTF8 | ConvertFrom-Json).SavedAtUtc
+            if ($persistedStamp -is [DateTime]) { $persistedStamp = $persistedStamp.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ') }
+            [string]$persistedStamp | Should Be '2020-01-01T00:00:00Z'
+        } finally { Remove-Item -LiteralPath $statePath -Force -ErrorAction SilentlyContinue }
+    }
+
     It 'applies only UI-controlled config values and preserves concurrent unknown fields' {
         $path = Join-Path $script:folderFixtures 'concurrent-config.json'
         $staleUiSnapshot = '{"global":{"hold_ms":100,"vendor_global":{"version":"old"}},"games":{"sample":{"rumble":false,"leds":false,"vendor_game":"old"}},"vendor_root":{"version":"old"}}'
