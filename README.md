@@ -9,6 +9,8 @@
 
 **English Documentation** | [Deutsche Dokumentation](README.de.md)
 
+> **v0.10.0** · [Download](https://github.com/kburna243/frieds-hotwm/releases/latest) · [Website](https://kburna243.github.io/frieds-hotwm/) · [Changelog](CHANGELOG.md) — needs [Fried's Retrogaming Kit](https://github.com/kburna243/frieds-retrogaming-kit) 1.5+ to save players by Bluetooth address (works standalone without it).
+
 ---
 
 ## 🎯 About The Project

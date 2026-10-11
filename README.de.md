@@ -9,6 +9,8 @@
 
 [English Documentation](README.md) | **Deutsche Dokumentation**
 
+> **v0.10.0** · [Download](https://github.com/kburna243/frieds-hotwm/releases/latest) · [Webseite](https://kburna243.github.io/frieds-hotwm/) · [Änderungen](CHANGELOG.md) — zum Speichern der Spieler per Bluetooth-Adresse braucht es [Fried's Retrogaming Kit](https://github.com/kburna243/frieds-retrogaming-kit) ab 1.5 (ohne Kit läuft Hotwm eigenständig).
+
 ---
 
 ## 🎯 Über das Projekt
