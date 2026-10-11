@@ -140,7 +140,7 @@ Describe 'hotwm guided setup session state' {
         (Get-HotwmSetupChecklist -Session $unknown).Ready | Should Be $false
     }
 
-    It 'persists only stable mappings through a cancellable action and imports history as untrusted' {
+    It 'preserves imported and current checks as untrusted history across a save round trip' {
         $session = New-HotwmSetupSession -Root $script:testRoot -Mode Custom -DeviceRecords @($script:records[0]) -ConfigPath $script:configPath -Mappings @(@{ Mac='AA:BB:CC:DD:EE:FF'; Player=1 })
         $key = $session.Devices[0].DeviceKey
         Confirm-HotwmSetupObservation -Session $session -DeviceKey $key -Check RuntimeSlot -ConfirmationCallback { return [pscustomobject]@{ Confirmed=$true; RuntimeSlot=1 } } | Out-Null
@@ -154,9 +154,23 @@ Describe 'hotwm guided setup session state' {
         $imported = Import-HotwmSetupState -Path $path -Root $script:testRoot
         $imported.DesiredMappings[0].Mac | Should Be 'AA:BB:CC:DD:EE:FF'
         $imported.HistoricalConfirmations[0].EvidenceSource | Should Be 'UntrustedHistorical'
+        $imported.HistoricalConfirmations[0].OriginalEvidenceSource | Should Be 'UserConfirmed'
+        $firstTimestamp = $imported.HistoricalConfirmations[0].ConfirmedAtUtc
+        $firstTimestamp | Should Not BeNullOrEmpty
         $next = New-HotwmSetupSession -Root $script:testRoot -Mode Custom -DeviceRecords @($script:records[0]) -ConfigPath $script:configPath -SavedState $imported
         (Get-HotwmSetupChecklist -Session $next).Ready | Should Be $false
         (Get-HotwmSetupChecklist -Session $next).Steps | Where-Object Status -eq 'historical-retest-required' | Should Not BeNullOrEmpty
+        Confirm-HotwmSetupObservation -Session $next -DeviceKey $next.Devices[0].DeviceKey -Check RuntimeSlot -ConfirmationCallback { return [pscustomobject]@{ Confirmed=$true; RuntimeSlot=2 } } | Out-Null
+        $roundTripAction = New-HotwmSetupSessionAction -Session $next -Path $path
+        [IO.File]::WriteAllText($path, $roundTripAction.ProposedContent, (New-Object System.Text.UTF8Encoding($false)))
+        $roundTrip = Import-HotwmSetupState -Path $path -Root $script:testRoot
+        @($roundTrip.HistoricalConfirmations).Count | Should Be 2
+        @($roundTrip.HistoricalConfirmations | Where-Object { $_.EvidenceSource -ne 'UntrustedHistorical' -or $_.Current -ne $false }).Count | Should Be 0
+        @($roundTrip.HistoricalConfirmations | Where-Object OriginalEvidenceSource -ne 'UserConfirmed').Count | Should Be 0
+        @($roundTrip.HistoricalConfirmations | Where-Object ConfirmedAtUtc -ne $firstTimestamp).Count | Should Be 1
+        $reloaded = New-HotwmSetupSession -Root $script:testRoot -Mode Custom -DeviceRecords @($script:records[0]) -ConfigPath $script:configPath -SavedState $roundTrip
+        (Get-HotwmSetupChecklist -Session $reloaded).Ready | Should Be $false
+        @($reloaded.Confirmations).Count | Should Be 0
     }
 
     It 'rejects imported duplicate mappings and a state associated with another root' {

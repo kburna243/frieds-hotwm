@@ -350,20 +350,41 @@ function New-HotwmSetupSessionAction {
     if (-not [string]::Equals($canonicalPath.TrimEnd('\','/'), $expectedPath.TrimEnd('\','/'), [System.StringComparison]::OrdinalIgnoreCase)) { throw 'Setup state can only be saved to .hotwm-setup.json directly inside the selected folder.' }
     if (Test-Path -LiteralPath $canonicalPath -PathType Leaf) { $null = Import-HotwmSetupState -Path $canonicalPath -Root $Session.Root }
     $mappings = @(ConvertTo-HotwmValidatedDesiredMappings -Mappings @($Session.Mappings))
-    $confirmations = foreach ($entry in $Session.Confirmations) {
-        [pscustomobject]@{
-            DeviceMac=$entry.DeviceMac; DesiredPlayer=$entry.DesiredPlayer; RuntimeGunmoteSlot=$entry.RuntimeGunmoteSlot
-            Check=$entry.Check; EvidenceSource=$entry.EvidenceSource; ConfirmedAtUtc=$entry.ConfirmedAtUtc
-            SessionId=$entry.SessionId; ConnectionSnapshotId=$entry.ConnectionSnapshotId; ConfigStatus=$entry.ConfigStatus
-            DeviceFingerprint=$entry.DeviceFingerprint; ConfigFingerprint=$entry.ConfigFingerprint
-        }
+    $historical = foreach ($entry in @($Session.HistoricalConfirmations) + @($Session.Confirmations)) {
+        ConvertTo-HotwmHistoricalConfirmation -Entry $entry
     }
     $state = [ordered]@{
         SchemaVersion=1; Root=$Session.Root; Mode=$Session.Mode; DesiredMappings=$mappings
-        HistoricalConfirmations=@($confirmations)
+        HistoricalConfirmations=@($historical)
         SavedAtUtc=[DateTime]::UtcNow.ToString('o')
     }
     New-HotwmFileAction -Path $canonicalPath -Content (ConvertTo-Json -InputObject $state -Depth 30) -Explanation 'Save desired Wiimote MAC-to-player mappings and historical user-check evidence'
+}
+
+function ConvertTo-HotwmHistoricalConfirmation {
+    param([Parameter(Mandatory=$true)][object]$Entry)
+    if ($Entry.Check -notin @('RuntimeSlot','Calibration','Aim','Trigger')) { return }
+    $mac = ConvertTo-HotwmBluetoothMac -DeviceRecord ([pscustomobject]@{ BluetoothAddress=[string]$Entry.DeviceMac })
+    if (-not $mac) { return }
+    $desiredPlayer = $null
+    $parsedPlayer = 0
+    if ([int]::TryParse([string]$Entry.DesiredPlayer, [ref]$parsedPlayer) -and $parsedPlayer -in @(1,2)) { $desiredPlayer = $parsedPlayer }
+    $runtimeSlot = $null
+    $parsedSlot = 0
+    if ([int]::TryParse([string]$Entry.RuntimeGunmoteSlot, [ref]$parsedSlot) -and $parsedSlot -in @(1,2)) { $runtimeSlot = $parsedSlot }
+    $provenance = if ($Entry.OriginalEvidenceSource -in @('UserConfirmed','UntrustedHistorical')) { [string]$Entry.OriginalEvidenceSource }
+                  elseif ($Entry.EvidenceSource -in @('UserConfirmed','UntrustedHistorical')) { [string]$Entry.EvidenceSource }
+                  else { 'Unknown' }
+    $confirmedAt = ''
+    $parsedDate = [DateTimeOffset]::MinValue
+    if ([DateTimeOffset]::TryParse([string]$Entry.ConfirmedAtUtc, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::RoundtripKind, [ref]$parsedDate)) {
+        $confirmedAt = $parsedDate.ToUniversalTime().ToString('o')
+    }
+    [pscustomobject]@{
+        DeviceMac=$mac; DesiredPlayer=$desiredPlayer; RuntimeGunmoteSlot=$runtimeSlot; Check=[string]$Entry.Check
+        EvidenceSource='UntrustedHistorical'; OriginalEvidenceSource=$provenance; ConfirmedAtUtc=$confirmedAt
+        Historical=$true; Current=$false
+    }
 }
 
 function Import-HotwmSetupState {
@@ -383,10 +404,7 @@ function Import-HotwmSetupState {
     $mappings = ConvertTo-HotwmValidatedDesiredMappings -Mappings @($state.DesiredMappings)
     $history = foreach ($entry in @($state.HistoricalConfirmations)) {
         if ($entry.Check -notin @('RuntimeSlot','Calibration','Aim','Trigger')) { continue }
-        [pscustomobject]@{
-            DeviceMac=$entry.DeviceMac; DesiredPlayer=$entry.DesiredPlayer; RuntimeGunmoteSlot=$entry.RuntimeGunmoteSlot
-            Check=$entry.Check; EvidenceSource='UntrustedHistorical'; Historical=$true; Current=$false
-        }
+        ConvertTo-HotwmHistoricalConfirmation -Entry $entry
     }
     [pscustomobject]@{
         SchemaVersion=1; Root=$canonicalRoot; Mode=$state.Mode
