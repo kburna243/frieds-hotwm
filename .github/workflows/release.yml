@@ -1,0 +1,51 @@
+# Publishes a release when a tag "vX.Y.Z" is pushed. The tag must match the VERSION file.
+# tests -> portable zip (tools\Build-HotwmPackage.ps1) -> GitHub release with the zip, its SHA-256 and the
+# CHANGELOG section of that version as notes.
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tag matches VERSION
+        shell: powershell
+        run: |
+          $version = ([IO.File]::ReadAllText("$PWD\VERSION")).Trim()
+          if ("v$version" -ne $env:GITHUB_REF_NAME) { throw "Tag $env:GITHUB_REF_NAME does not match VERSION $version" }
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Tests
+        shell: powershell
+        run: |
+          python src/hotwm_relay.py --selftest
+          python -m unittest discover tests
+          .\tests\Run-Tests.ps1
+
+      - name: Build portable zip
+        shell: powershell
+        run: .\tools\Build-HotwmPackage.ps1 -OutDir dist
+
+      - name: Publish GitHub release
+        shell: powershell
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $version = ([IO.File]::ReadAllText("$PWD\VERSION")).Trim()
+          $log = [IO.File]::ReadAllText("$PWD\CHANGELOG.md")
+          $m = [regex]::Match($log, "(?ms)^## \[$([regex]::Escape($version))\][^\n]*\n(.*?)(?=^## \[|\z)")
+          $notes = if ($m.Success) { $m.Groups[1].Value.Trim() } else { "Release v$version" }
+          [IO.File]::WriteAllText("$PWD\dist\RELEASE_NOTES.md", $notes, (New-Object Text.UTF8Encoding $false))
+          $zip = "dist\frieds-hotwm-v$version.zip"
+          gh release create $env:GITHUB_REF_NAME $zip "$zip.sha256" --title "Fried's Hotwm $env:GITHUB_REF_NAME" --notes-file dist\RELEASE_NOTES.md --verify-tag

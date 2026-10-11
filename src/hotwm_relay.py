@@ -55,7 +55,7 @@ class ConfigManager:
 
     def __init__(self, config_path=None):
         self.path = Path(config_path) if config_path else DEFAULT_CONFIG_PATH
-        self.last_mtime = 0
+        self._signature = None
         self.config = {
             "global": {
                 "hold_ms": DEFAULT_HOLD_MS,
@@ -71,20 +71,58 @@ class ConfigManager:
         if not self.path.exists():
             return
         try:
-            mtime = self.path.stat().st_mtime
-            if mtime > self.last_mtime:
-                with self.path.open("r", encoding="utf-8") as f:
+            stat = self.path.stat()
+            signature = (stat.st_mtime_ns, stat.st_size, getattr(stat, "st_ino", 0))
+            if signature != self._signature:
+                with self.path.open("r", encoding="utf-8-sig") as f:
                     data = json.load(f)
-                if isinstance(data, dict):
+                if self._valid_config(data):
                     self.config = data
-                    self.last_mtime = mtime
-        except Exception:
+                    self._signature = signature
+        except (OSError, ValueError, UnicodeError):
             pass
+
+    @staticmethod
+    def _valid_hold(value):
+        return isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 60000
+
+    @classmethod
+    def _valid_config(cls, data):
+        if not isinstance(data, dict):
+            return False
+        global_settings = data.get("global", {})
+        games = data.get("games", {})
+        if not isinstance(global_settings, dict) or not isinstance(games, dict):
+            return False
+        if "hold_ms" in global_settings and not cls._valid_hold(global_settings["hold_ms"]):
+            return False
+        if "ammo_drop_shot" in global_settings and not isinstance(global_settings["ammo_drop_shot"], bool):
+            return False
+        if "trace_enabled" in global_settings and not isinstance(global_settings["trace_enabled"], bool):
+            return False
+        if "led_mode" in global_settings and global_settings["led_mode"] not in ("life_bar", "none"):
+            return False
+        for settings in games.values():
+            if not isinstance(settings, dict):
+                return False
+            for key in ("rumble", "leds"):
+                if key in settings and not isinstance(settings[key], bool):
+                    return False
+            if "hold_ms" in settings and not cls._valid_hold(settings["hold_ms"]):
+                return False
+        return True
 
     @property
     def hold_ms(self):
         self.reload()
-        return self.config.get("global", {}).get("hold_ms", DEFAULT_HOLD_MS)
+        value = self.config.get("global", {}).get("hold_ms", DEFAULT_HOLD_MS)
+        return value if self._valid_hold(value) else DEFAULT_HOLD_MS
+
+    @property
+    def led_mode(self):
+        self.reload()
+        value = self.config.get("global", {}).get("led_mode", "life_bar")
+        return value if value in ("life_bar", "none") else "life_bar"
 
     @property
     def ammo_drop_shot(self):
@@ -98,19 +136,26 @@ class ConfigManager:
 
     def game_settings(self, game_name, default_hold=None):
         self.reload()
-        fallback_hold = default_hold if default_hold is not None else self.hold_ms
+        fallback_hold = self.hold_ms
+        if not self._valid_hold(fallback_hold):
+            fallback_hold = default_hold if self._valid_hold(default_hold) else DEFAULT_HOLD_MS
+        elif "hold_ms" not in self.config.get("global", {}) and self._valid_hold(default_hold):
+            fallback_hold = default_hold
+        global_leds = self.led_mode != "none"
         if not game_name:
-            return {"rumble": True, "leds": True, "hold_ms": fallback_hold}
+            return {"rumble": True, "leds": global_leds, "hold_ms": fallback_hold}
         games = self.config.get("games", {})
+        if not isinstance(games, dict):
+            games = {}
         gn_lower = game_name.strip().lower()
         for k, v in games.items():
-            if k.lower() == gn_lower and isinstance(v, dict):
+            if isinstance(k, str) and k.lower() == gn_lower and isinstance(v, dict):
                 return {
                     "rumble": v.get("rumble", True),
-                    "leds": v.get("leds", True),
-                    "hold_ms": v.get("hold_ms", fallback_hold),
+                    "leds": global_leds and v.get("leds", True),
+                    "hold_ms": v.get("hold_ms") if self._valid_hold(v.get("hold_ms")) else fallback_hold,
                 }
-        return {"rumble": True, "leds": True, "hold_ms": fallback_hold}
+        return {"rumble": True, "leds": global_leds, "hold_ms": fallback_hold}
 
 
 GLOBAL_CONFIG = ConfigManager()
@@ -133,10 +178,11 @@ def led_bar(player, value, eol, top=100):
 class Relay:
     """Core message processing engine for recoil stretching, ammo drops, and LED health."""
 
-    def __init__(self, sink, hold_ms=DEFAULT_HOLD_MS, shared=None):
+    def __init__(self, sink, hold_ms=DEFAULT_HOLD_MS, shared=None, config_manager=None):
         self.sink = sink
         self.hold = hold_ms / 1000
         self.shared = shared
+        self.config = config_manager
         self.loop = asyncio.get_running_loop()
         self.on_since = {}
         self.pending = {}
@@ -162,7 +208,9 @@ class Relay:
 
         m = LINE.match(msg.strip())
         name = m and m.group(1).decode(errors="replace")
-        settings = GLOBAL_CONFIG.game_settings(self.current_game, default_hold=self.hold * 1000)
+        settings = self.config.game_settings(self.current_game, default_hold=int(round(self.hold * 1000))) if self.config else {
+            "rumble": True, "leds": True, "hold_ms": self.hold * 1000,
+        }
 
         if name in ALL_STRETCH:
             if not settings.get("rumble", True):
@@ -180,7 +228,8 @@ class Relay:
 
         self.sink(msg)
 
-        if name in AMMO and GLOBAL_CONFIG.ammo_drop_shot and settings.get("rumble", True):
+        ammo_drop_shot = self.config.ammo_drop_shot if self.config else True
+        if name in AMMO and ammo_drop_shot and settings.get("rumble", True):
             value, player = int(m.group(2)), AMMO[name]
             current_hold = settings.get("hold_ms", self.hold * 1000) / 1000
             if value < self.ammo.get(name, -1):
@@ -316,7 +365,7 @@ async def handle(c_reader, c_writer, upstream_port, hold_ms):
             except OSError:
                 await asyncio.wait([closed], timeout=1)
                 continue
-            relay = Relay(c_writer.write, hold_ms, SHARED_FFB)
+            relay = Relay(c_writer.write, hold_ms, SHARED_FFB, config_manager=GLOBAL_CONFIG)
             up = asyncio.create_task(pump_up(u_reader, c_writer, relay))
             await asyncio.wait([up, closed], return_when=asyncio.FIRST_COMPLETED)
             up.cancel()
@@ -555,7 +604,7 @@ async def main():
     # Normal server start
     print(f"Starting hotwm relay server on port {DEFAULT_LISTEN_PORT} (upstream {DEFAULT_UPSTREAM_PORT})...")
     loop = asyncio.get_running_loop()
-    wm = Relay(broadcast, GLOBAL_CONFIG.hold_ms)
+    wm = Relay(broadcast, GLOBAL_CONFIG.hold_ms, config_manager=GLOBAL_CONFIG)
 
     def wm_feed(line):
         if MAME_START.match(line):

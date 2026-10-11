@@ -6,6 +6,11 @@
 ../assets/
 artifacts/
 assets/
+!gui/assets/
+!gui/assets/brand/
+gui/assets/brand/*
+!gui/assets/brand/*.svg
+!gui/assets/brand/*.png
 
 # Dependencies
 node_modules/

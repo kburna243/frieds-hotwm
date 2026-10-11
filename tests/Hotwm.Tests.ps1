@@ -72,11 +72,12 @@ Describe 'hotwm — Kit API Live Contract (Cabinets with RetroCabinetKit)' {
         $script:kitAvailable = [bool]($script:realKit -and (Test-Path (Join-Path $script:realKit 'api\Invoke-KitApi.ps1')) -and ($script:realKit -notlike '*fake-kit*'))
     }
 
-    It 'contract snapshot kit-contract-v1.json exists and targets ApiVersion 1.6 (Kit 1.4.0)' {
+    It 'contract snapshot kit-contract-v1.json exists and targets ApiVersion 1.8 (MAC binding with PlanId)' {
         $cPath = Join-Path $script:repoRoot 'contract\kit-contract-v1.json'
         (Test-Path $cPath) | Should Be $true
         $contract = Get-Content -LiteralPath $cPath -Raw -Encoding UTF8 | ConvertFrom-Json
-        $contract.TargetKit.ApiVersion | Should Be '1.6'
+        $contract.TargetKit.ApiVersion | Should Be '1.8'
+        @(($contract.SupportedOperations | Where-Object { $_.Name -eq 'controllers.wiimote_bind' }).Parameters.Name) -join ',' | Should Be 'Binding,PlanId'
         $contract.TargetKit.KitVersion | Should Be '1.4.0'
         $hookOp = $contract.RequiredOperations | Where-Object { $_.Name -eq 'outputs.wiimote_hook' }
         $hookOp | Should Not Be $null
@@ -237,6 +238,34 @@ Describe 'hotwm — Packaging' {
         ($entryNames -contains 'README.md') | Should Be $true
         ($entryNames -contains 'README.de.md') | Should Be $true
         ($entryNames -contains 'Start-HotwmDashboard.bat') | Should Be $true
+
+        foreach ($state in @('friendly', 'controller', 'celebrate', 'surprised')) {
+            ($entryNames -contains "gui\assets\brand\character-$state.svg") | Should Be $true
+            ($entryNames -contains "gui\assets\brand\character-$state.png") | Should Be $true
+        }
+        ($entryNames -contains 'docs\brand-assets.md') | Should Be $true
+        ($entryNames -contains 'docs\design.md') | Should Be $true
+
+        $zip = [System.IO.Compression.ZipFile]::OpenRead($pkg.ArchiveFile)
+        try {
+            $brandEntry = $zip.GetEntry('docs\brand-assets.md')
+            $designEntry = $zip.GetEntry('docs\design.md')
+            $brandReader = New-Object System.IO.StreamReader($brandEntry.Open())
+            $designReader = New-Object System.IO.StreamReader($designEntry.Open())
+            try {
+                $brandText = $brandReader.ReadToEnd()
+                $designText = $designReader.ReadToEnd()
+            } finally {
+                $brandReader.Dispose()
+                $designReader.Dispose()
+            }
+            $brandText | Should Match 'Source directory:.*frieds-retrogaming-skills'
+            $designText | Should Match 'Copyright © 2026 Friedrich Börner'
+            $designText | Should Match 'creativecommons\.org/licenses/by-sa/4\.0/'
+            $designText | Should Match 'source body is unchanged'
+        } finally {
+            $zip.Dispose()
+        }
     }
 }
 

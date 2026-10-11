@@ -11,7 +11,7 @@ $ErrorActionPreference = 'Stop'
 $testsDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
 if (-not $Path) {
-    $Path = @((Join-Path $testsDir 'Hotwm.Tests.ps1'))
+    $Path = @(Get-ChildItem -LiteralPath $testsDir -Filter '*.Tests.ps1' -File | Sort-Object Name | ForEach-Object { $_.FullName })
 }
 
 Import-Module Pester -MaximumVersion 3.99

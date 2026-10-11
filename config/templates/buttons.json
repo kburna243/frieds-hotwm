@@ -1,0 +1,19 @@
+{
+  "SchemaVersion": 1,
+  "Kind": "buttons",
+  "Templates": [
+    {
+      "Id": "lightgun-intents",
+      "Name": "Lightgun intents",
+      "Description": "Semantic checklist for documenting intended controls; no hardware mapping is applied.",
+      "TargetCapability": "manual-or-kit-profile",
+      "Intents": [
+        { "Id": "shoot", "Label": "Shoot" },
+        { "Id": "reload", "Label": "Reload" },
+        { "Id": "start", "Label": "Start" },
+        { "Id": "coin", "Label": "Coin" },
+        { "Id": "pause", "Label": "Pause" }
+      ]
+    }
+  ]
+}

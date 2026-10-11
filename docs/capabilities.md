@@ -1,0 +1,16 @@
+# Hotwm P0 device capability matrix
+
+This is a bounded assessment of `gui/HotwmDashboard.ps1` and the read-only Windows PnP helper in `src/HotwmDevices.ps1`. It does not establish behavior for every Wiimote, Bluetooth stack, or DolphinBar combination.
+
+| Capability | Evidence and behavior | Status |
+|---|---|---|
+| Existing GUI presence check | `Get-WiimoteDevicesStatus` calls `Get-PnpDevice`, matches friendly names containing DolphinBar/Wiimote/RVL-CNT-01/Nintendo, and reports CONNECTED for any status-OK match. | Presence only; cannot identify a controller or prove it works. |
+| Individual Bluetooth identity | `ConvertTo-HotwmBluetoothMac` accepts a Bluetooth `DEV_<12 hex>` instance ID, the verified Nintendo Wiimote HID `VID_0002057E` parent path ending in `&<12 hex>_C00000000`, or a PnP property explicitly named as a Bluetooth/device address. HID parents are queried only for the matching Nintendo Wiimote HID hardware identifier. No address is inferred from adapter names, arbitrary devices, enumeration order, or USB DolphinBar IDs. | The HID parent pattern is backed by the reviewed Kit `arcade/modules/WiimoteOrder.ps1` discovery code. Recognition remains PnP evidence; controller operation still requires calibration and target testing. |
+| Bluetooth/HID aliases | When one Nintendo HID child has the same explicit parent MAC as one Bluetooth Wiimote record, discovery merges those PnP rows into one controller and retains both source identifiers. Conflicting duplicate records remain ambiguous. | Deduplication requires matching address evidence; no friendly-name or enumeration-order deduplication. |
+| Desired player assignment | `Resolve-HotwmPlayerMappings` matches normalized MAC mappings independent of enumeration order and rejects duplicate identities/assignments or slots outside players 1 and 2. Results use `DesiredPlayer`; legacy `Player` mirrors that desired value for current GUI display. `RuntimeGunmoteSlot` stays unset. | Persistent desired assignment does not claim runtime slot 1/2. Reviewed Kit ordering code uses connection order; reconnect-to-runtime-slot behavior requires separate verification. |
+| DolphinBar | A PnP friendly name can establish that a bar is detected. A USB DolphinBar identifier is excluded as a Wiimote MAC source. | Individual controller MAC is not inferred from bar presence. |
+| Pairing | The completion plan calls for semi-automatic guided pairing, potentially with physical steps. The reviewed hotwm GUI contains no demonstrated per-controller pairing API. | Not implemented or claimed by this P0 slice. |
+| Calibration and operation | PnP status does not establish calibration, aim/trigger function, or haptic output. Discovery initializes `ManuallyCalibrated`, `Tested`, and `Ready` to false. | Requires later guided manual calibration and target testing with actual hardware. |
+| Gunmote integration | The reviewed GUI searches for a Gunmote process. That does not establish a supported identity, pairing, or calibration API. | No Gunmote API is asserted. |
+
+Next evidence needed: validate the verified Nintendo HID parent pattern across supported Windows/Bluetooth combinations, then separately observe actual Gunmote runtime slots through disconnect/reconnect. Device readiness must remain false until the later calibration and per-player target test explicitly succeed.

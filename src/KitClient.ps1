@@ -11,25 +11,54 @@ param()
 
 function Get-HotwmKitRoot {
     [CmdletBinding()]
-    param()
+    param(
+        [string]$ApplicationRoot = (Split-Path -Parent $PSScriptRoot)
+    )
 
-    # 1. Environment variable override
-    if ($env:RETRO_CABINET_KIT_ROOT -and (Test-Path $env:RETRO_CABINET_KIT_ROOT)) {
-        return $env:RETRO_CABINET_KIT_ROOT
+    # An explicit override is authoritative. A stale or invalid override must not
+    # silently connect this application to a different Kit checkout.
+    if ($null -ne $env:RETRO_CABINET_KIT_ROOT -and $env:RETRO_CABINET_KIT_ROOT.Length -gt 0) {
+        $explicitRoot = $env:RETRO_CABINET_KIT_ROOT
+        try {
+            $resolved = Resolve-Path -LiteralPath $explicitRoot -ErrorAction Stop
+            if (-not $resolved.ProviderPath -or -not (Test-Path -LiteralPath $resolved.ProviderPath -PathType Container)) { return $null }
+            $apiEntry = Join-Path $resolved.ProviderPath 'api\Invoke-KitApi.ps1'
+            if (-not (Test-Path -LiteralPath $apiEntry -PathType Leaf)) { return $null }
+            return [System.IO.Path]::GetFullPath($resolved.ProviderPath)
+        } catch {
+            return $null
+        }
     }
 
-    # 2. Known default path in this cabinet ecosystem
-    $knownCabinetPath = "I:\claude-system\data\projects\retro-cabinet-kit"
-    if (Test-Path $knownCabinetPath) {
-        return $knownCabinetPath
+    # Search only known adjacent layouts. This supports source (code/src) and
+    # portable (gui/src) deployments without scanning drives or the working dir.
+    try {
+        $appResolved = Resolve-Path -LiteralPath $ApplicationRoot -ErrorAction Stop
+        if (-not $appResolved.ProviderPath -or -not (Test-Path -LiteralPath $appResolved.ProviderPath -PathType Container)) { return $null }
+        $appPath = [System.IO.Path]::GetFullPath($appResolved.ProviderPath)
+    } catch {
+        return $null
     }
 
-    # 3. Sibling folder check (e.g. ..\retro-cabinet-kit or ..\frieds-retrogaming-kit)
-    $parent = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-    if ($parent) {
-        foreach ($candidate in @("retro-cabinet-kit", "frieds-retrogaming-kit")) {
-            $p = Join-Path $parent $candidate
-            if (Test-Path $p) { return $p }
+    $firstParent = Split-Path -Parent $appPath
+    if ([string]::IsNullOrWhiteSpace($firstParent)) { return $null }
+    $secondParent = Split-Path -Parent $firstParent
+    $bases = @($firstParent)
+    if (-not [string]::IsNullOrWhiteSpace($secondParent) -and $secondParent -ne $firstParent) { $bases += $secondParent }
+
+    foreach ($base in $bases) {
+        foreach ($candidateName in @('retro-cabinet-kit', 'frieds-retrogaming-kit')) {
+            $candidate = Join-Path $base $candidateName
+            try {
+                $resolvedCandidate = Resolve-Path -LiteralPath $candidate -ErrorAction Stop
+                if (-not $resolvedCandidate.ProviderPath -or -not (Test-Path -LiteralPath $resolvedCandidate.ProviderPath -PathType Container)) { continue }
+                $apiEntry = Join-Path $resolvedCandidate.ProviderPath 'api\Invoke-KitApi.ps1'
+                if (Test-Path -LiteralPath $apiEntry -PathType Leaf) {
+                    return [System.IO.Path]::GetFullPath($resolvedCandidate.ProviderPath)
+                }
+            } catch {
+                continue
+            }
         }
     }
 

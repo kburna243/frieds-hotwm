@@ -2,12 +2,14 @@
 
 > **Standalone & Kit-Ready Recoil Rumble & LED Haptics Relay for Gunmote and Wiimotes**
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Software License: MIT](https://img.shields.io/badge/Software%20License-MIT-blue.svg)](LICENSE)
 [![Platform: Windows](https://img.windows.com/badge/Platform-Windows%2010%20%7C%2011-0078D6.svg)](https://microsoft.com/windows)
 [![Language: PowerShell](https://img.shields.io/badge/Language-PowerShell%205.1%2B-blue.svg)](https://microsoft.com/powershell)
 [![Language: Python](https://img.shields.io/badge/Language-Python%203.10%2B-yellow.svg)](https://python.org)
 
 **English Documentation** | [Deutsche Dokumentation](README.de.md)
+
+> **v0.10.0** · [Download](https://github.com/kburna243/frieds-hotwm/releases/latest) · [Website](https://kburna243.github.io/frieds-hotwm/) · [Changelog](CHANGELOG.md) — needs [Fried's Retrogaming Kit](https://github.com/kburna243/frieds-retrogaming-kit) 1.5+ to save players by Bluetooth address (works standalone without it).
 
 ---
 
@@ -62,14 +64,17 @@ flowchart TD
 
 ## 🖥️ Standalone WPF Dashboard
 
-The dashboard provides an intuitive arcade-style interface for hardware status, haptics testing, tuning, and live log monitoring:
+The native Windows dashboard uses Fried's Night/Cream palette with restrained green, gold, and red status accents. It includes local mascot artwork and runs without web fonts or downloaded visual assets.
 
-- **1-Click Launch:** Double-click `Start-HotwmDashboard.bat` (or run `.\gui\HotwmDashboard.ps1`).
-- **Hardware Health Indicators:** Real-time status lights for the Relay, Gunmote process, ViGEmBus driver, Wiimotes / DolphinBar, and Kit API.
-- **Haptics Test Bench:** Dedicated test buttons for Player 1 & 2 Recoil Kick (150ms) and LED light patterns without launching any game.
-- **Real-Time Tuning:** Recoil-stretch slider (80–300 ms), toggles for ammo-drop kick and LED life bar, and per-game overrides. Changes are saved directly to `hotw.json` and **hot-reloaded by the running relay in under 1 second**.
-- **Live Log:** Embedded stream of MAMEOutput events and recoil pulses.
-- **Cabinet Integration:** One-click verification against *Fried's Retrogaming Kit* (Input Matrix v1.3+ and Output Safety audit).
+- **Guided setup:** Quick, Custom, and Expert modes share the same setup session. Choose a folder, inspect read-only device discovery, and keep a desired Bluetooth MAC-to-player assignment separate from the Gunmote runtime slot observed for the connected controller.
+- **Manual hardware checks:** Pairing, calibration, runtime-slot identification, aim, and trigger checks require the user. Windows PnP detection alone does not establish that a controller is paired, calibrated, or playable. “Complete” means all required checks were confirmed by the user; HOTWM does not independently verify hardware function.
+- **Reviewed actions:** File changes and task operations are proposed and confirmed one action at a time. Declining a proposal leaves its target unchanged; there is no wizard-wide apply-all.
+- **Effect profiles:** Copy a shipped preset into a user profile and edit supported `hotw.json` relay settings: global hold time (80–300 ms), ammo-drop behavior, LED mode, trace flag, and per-game rumble/LED toggles. Imported profiles may also include per-game `hold_ms`; the relay supports it and Apply preserves it, though the per-game editor does not expose that field. Applying shows the edited values and target, makes a backup, and hot-reloads supported settings.
+- **Gunmote layout editor:** Edit actual OnScreen/OffScreen button mappings in a layout JSON file and optionally add its filename to `Keymaps.json`. Saving requires review and Gunmote to be closed; it does not activate a layout or restart Gunmote.
+- **Button intent profiles:** Record semantic intents such as Shoot or Reload. These notes do not bind a controller or game input.
+- **Diagnostics and tests:** Read-only health, device, and Kit status; Player 1/2 rumble and LED test controls; live log monitoring and recoil tuning. Kit diagnostics are not an exact file-change plan for an all-in-one setup, and no external Agent currently consumes the HOTWM snapshot contract.
+
+Launch with `Start-HotwmDashboard.bat` or run `./gui/HotwmDashboard.ps1`.
 
 ---
 
@@ -123,27 +128,12 @@ The resulting archive will be placed in `dist/frieds-hotwm-v<version>.zip`.
 
 ## 🚀 Milestones & Status
 
-1. **Phase 1: Core Relay Anchor** ✅ *(Completed)*
-   - Dual-channel TCP server (Port 8000 for Gunmote, Port 8002 for FFBBlaster)
-   - Win32 Message Loop for DemulShooter & MAME
-   - Pulse stretcher (16ms → 150ms) and ammo-decrement trigger
-2. **Phase 2: Configuration & Filter Engine (`hotw.json`)** ✅ *(Completed)*
-   - 14 preconfigured game profiles and haptic toggles (rumble / LEDs)
-   - Instant socket test triggers (`--test-p1-rumble`, `--test-p1-leds`, `tools\Test-HotwmHaptics.ps1`)
-   - Kit API Contract v1.6 pinned snapshot & automated drift check
-3. **Phase 3: Windows Automation & Diagnostics** ✅ *(Completed)*
-   - Background task `Gunmote Recoil Stretch` (`Install-HotwmTask.ps1` / `Uninstall-HotwmTask.ps1`)
-   - KitClient for querying Kit operation `outputs.wiimote_hook`
-4. **Phase 4: Graphical User Interface (WPF Dashboard)** ✅ *(Completed)*
-   - `gui/HotwmDashboard.ps1` & `HotwmDashboard.xaml` with Arcade Dark Theme
-   - Health lights for all components, haptics test bench, live tuning, and log monitor
-   - 1-click launcher `Start-HotwmDashboard.bat`
-5. **Phase 5: Portable Standalone Packaging & Release** ✅ *(Completed)*
-   - Portable packaging script (`Build-HotwmPackage.ps1` → ZIP distribution)
-   - Dual-language documentation (`README.de.md` & `README.md`)
+The original relay, configuration engine, Windows task tools, dashboard foundation, and portable package (Phases 1–5) are completed. Those historical milestones do not mean the newer setup orchestration is finished.
+
+**Current work — guided setup and Kit orchestration:** the dashboard now offers three setup modes, read-only device evidence, manual-check tracking, and individually reviewed local edits. A safe all-in-one Kit flow remains in progress: current Kit dry-runs do not expose the exact file/task proposals HOTWM would need to review and bind to approval. The desired MAC-to-player assignment can be saved in the Kit (Kit API 1.8, "Zuordnung ins Kit übernehmen"): the Kit shows its plan first and writes only that plan. The RetroGamingAgent uses the same Kit operation behind its own approval gate. Real Wiimote operation still requires physical testing.
 
 ---
 
 ## 📜 License
 
-MIT License — Copyright (c) 2026 Friedrich Börner
+Software code is MIT licensed — Copyright (c) 2026 Friedrich Börner; see [LICENSE](LICENSE). The packaged Markdown design document is separately licensed under CC BY-SA 4.0 and credited to Friedrich Börner in [docs/design.md](docs/design.md). The accompanying SVG/PNG brand artwork was provided by the project owner; its inclusion does not extend the design document's license to those image assets. Packaged asset provenance is recorded in [docs/brand-assets.md](docs/brand-assets.md).
