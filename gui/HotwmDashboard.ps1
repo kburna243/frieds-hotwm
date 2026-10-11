@@ -28,7 +28,7 @@ $repoDir = Split-Path -Parent $guiDir
 $xamlPath = Join-Path $guiDir "HotwmDashboard.xaml"
 $script:configPath = Join-Path $repoDir "config\hotw.json"
 $setupState = [pscustomobject]@{ RetroBatRoot = $null; Root = $null }
-$wizardState = [pscustomobject]@{ Session = $null; Root = $null; LastImport = $null; Render = $null; Checklist = $null; SelectedDeviceKey = $null; SuppressModeChange = $false }
+$wizardState = [pscustomobject]@{ Session = $null; Root = $null; LastImport = $null; Render = $null; Checklist = $null; SelectedDeviceKey = $null; SuppressModeChange = $false; Dispatch = $null }
 $toolsDir = Join-Path $repoDir "tools"
 $srcDir = Join-Path $repoDir "src"
 
@@ -52,7 +52,11 @@ if (-not (Test-Path $xamlPath)) {
 
 # 1. Load and parse XAML
 $xaml = [System.IO.File]::ReadAllText($xamlPath)
-$window = [System.Windows.Markup.XamlReader]::Parse($xaml)
+$parserContext = [System.Windows.Markup.ParserContext]::new()
+$parserContext.BaseUri = [Uri]::new([System.IO.Path]::GetFullPath($xamlPath))
+$xamlStream = [System.IO.File]::OpenRead($xamlPath)
+try { $window = [System.Windows.Markup.XamlReader]::Load($xamlStream, $parserContext) }
+finally { $xamlStream.Dispose() }
 
 # 2. Map named controls
 $controls = @{}
@@ -61,16 +65,41 @@ foreach ($m in [regex]::Matches($xaml, 'x:Name="([A-Za-z0-9_]+)"')) {
     $element = $window.FindName($name)
     if ($element) { $controls[$name] = $element }
 }
+$presetHelpBinding = [System.Windows.Data.Binding]::new('SelectedItem.Description')
+$presetHelpBinding.ElementName = 'CmbGunmoteKind'
+$presetHelpBinding.TargetNullValue = 'Wähle eine Vorlage; ihre Originaldatei bleibt unverändert.'
+$controls.TextGunmoteKindHelp.SetBinding([System.Windows.Controls.TextBlock]::TextProperty, $presetHelpBinding) | Out-Null
 
 # hotwm's own version: the VERSION file is the one source (the package builder reads it too)
 $controls.TextVersion.Text = 'v' + $(try { ([IO.File]::ReadAllText((Join-Path $repoDir 'VERSION'))).Trim() } catch { '?' })
 
 # Helper: Brushes
-$brushGreen  = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#00E676")
-$brushRed    = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#FF5252")
-$brushYellow = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#FFB020")
-$brushGray   = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#8F93A2")
-$brushCyan   = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#00E5FF")
+$brushGreen  = $window.FindResource('StatusSuccessBrush')
+$brushRed    = $window.FindResource('StatusDangerBrush')
+$brushYellow = $window.FindResource('StatusWarningBrush')
+$brushGray   = $window.FindResource('MutedTextBrush')
+$brushCyan   = $window.FindResource('AccentBrush')
+
+function Set-HotwmMascotImage {
+    param([System.Windows.Controls.Image]$Image, [string]$FileName)
+    $imagePath = Join-Path (Join-Path $guiDir 'assets\brand') $FileName
+    if (-not $Image -or -not (Test-Path -LiteralPath $imagePath -PathType Leaf)) { return $false }
+    try {
+        $bitmap = [System.Windows.Media.Imaging.BitmapImage]::new()
+        $bitmap.BeginInit()
+        $bitmap.CacheOption = [System.Windows.Media.Imaging.BitmapCacheOption]::OnLoad
+        $bitmap.UriSource = [Uri]::new((Get-Item -LiteralPath $imagePath).FullName)
+        $bitmap.EndInit()
+        $bitmap.Freeze()
+        $Image.Source = $bitmap
+        return $true
+    } catch { return $false }
+}
+
+$null = Set-HotwmMascotImage -Image $controls.BrandFriendlyMascot -FileName 'character-friendly.png'
+$null = Set-HotwmMascotImage -Image $controls.BrandControllerMascot -FileName 'character-controller.png'
+$null = Set-HotwmMascotImage -Image $controls.BrandSurprisedMascot -FileName 'character-surprised.png'
+$null = Set-HotwmMascotImage -Image $controls.BrandCelebrateMascot -FileName 'character-celebrate.png'
 
 # Helper: Send Socket Command
 function Send-HotwmSocketCommand {
@@ -152,9 +181,9 @@ function Get-WiimoteDevicesStatus {
         Where-Object { $_.FriendlyName -match "DolphinBar|Wiimote|RVL-CNT-01|Nintendo" -and $_.Status -eq "OK" }
     if ($devices) {
         $names = ($devices | ForEach-Object { $_.FriendlyName } | Select-Object -Unique) -join ", "
-        return @{ Connected = $true; Message = "Detected: $names" }
+        return @{ Connected = $true; Message = "Windows-Gerät erkannt: $names. Spielerzuordnung und Spielfunktion sind noch offen." }
     }
-    return @{ Connected = $false; Message = "No Wiimote found (Bluetooth or DolphinBar) in Device Manager" }
+    return @{ Connected = $false; Message = "Kein passendes Wiimote- oder DolphinBar-Gerät in Windows gefunden." }
 }
 
 function Get-HotwmTaskStatus {
@@ -171,15 +200,15 @@ function Update-DashboardStatus {
     $r = Get-RelayStatus
     if ($r.Running) {
         $controls.RelayHeaderDot.Fill = $brushGreen
-        $controls.RelayHeaderStatus.Text = "RELAY RUNNING"
+        $controls.RelayHeaderStatus.Text = "Rückstoßdienst aktiv"
         $controls.RelayHeaderStatus.Foreground = $brushGreen
         $controls.DotRelay.Fill = $brushGreen
-        $controls.TextRelayBadge.Text = "ACTIVE"
+        $controls.TextRelayBadge.Text = "AKTIV"
         $controls.TextRelayBadge.Foreground = $brushGreen
         $controls.TextRelayDetail.Text = $r.Message
     } else {
         $controls.RelayHeaderDot.Fill = $brushRed
-        $controls.RelayHeaderStatus.Text = "RELAY STOPPED"
+        $controls.RelayHeaderStatus.Text = "Rückstoßdienst inaktiv"
         $controls.RelayHeaderStatus.Foreground = $brushRed
         $controls.DotRelay.Fill = $brushRed
         $controls.TextRelayBadge.Text = "OFFLINE"
@@ -191,12 +220,12 @@ function Update-DashboardStatus {
     $gm = Get-GunmoteStatus
     if ($gm.Running) {
         $controls.DotGunmote.Fill = $brushGreen
-        $controls.TextGunmoteBadge.Text = "RUNNING"
+        $controls.TextGunmoteBadge.Text = "LÄUFT"
         $controls.TextGunmoteBadge.Foreground = $brushGreen
         $controls.TextGunmoteDetail.Text = $gm.Message
     } else {
         $controls.DotGunmote.Fill = $brushGray
-        $controls.TextGunmoteBadge.Text = "INACTIVE"
+        $controls.TextGunmoteBadge.Text = "INAKTIV"
         $controls.TextGunmoteBadge.Foreground = $brushGray
         $controls.TextGunmoteDetail.Text = $gm.Message
     }
@@ -205,12 +234,12 @@ function Update-DashboardStatus {
     $vg = Get-ViGEmBusStatus
     if ($vg.Running) {
         $controls.DotVigem.Fill = $brushGreen
-        $controls.TextVigemBadge.Text = "OK"
+        $controls.TextVigemBadge.Text = "VORHANDEN"
         $controls.TextVigemBadge.Foreground = $brushGreen
         $controls.TextVigemDetail.Text = $vg.Message
     } else {
         $controls.DotVigem.Fill = $brushYellow
-        $controls.TextVigemBadge.Text = "MISSING"
+        $controls.TextVigemBadge.Text = "FEHLT"
         $controls.TextVigemBadge.Foreground = $brushYellow
         $controls.TextVigemDetail.Text = $vg.Message
     }
@@ -219,12 +248,12 @@ function Update-DashboardStatus {
     $wm = Get-WiimoteDevicesStatus
     if ($wm.Connected) {
         $controls.DotWiimote.Fill = $brushGreen
-        $controls.TextWiimoteBadge.Text = "CONNECTED"
+        $controls.TextWiimoteBadge.Text = "ERKANNT"
         $controls.TextWiimoteBadge.Foreground = $brushGreen
         $controls.TextWiimoteDetail.Text = $wm.Message
     } else {
         $controls.DotWiimote.Fill = $brushYellow
-        $controls.TextWiimoteBadge.Text = "NOT FOUND"
+        $controls.TextWiimoteBadge.Text = "NICHT GEFUNDEN"
         $controls.TextWiimoteBadge.Foreground = $brushYellow
         $controls.TextWiimoteDetail.Text = $wm.Message
     }
@@ -233,12 +262,12 @@ function Update-DashboardStatus {
     $ts = Get-HotwmTaskStatus
     if ($ts.Installed) {
         $controls.DotTask.Fill = $brushGreen
-        $controls.TextTaskBadge.Text = "INSTALLED"
+        $controls.TextTaskBadge.Text = "EINGERICHTET"
         $controls.TextTaskBadge.Foreground = $brushGreen
         $controls.TextTaskDetail.Text = "Scheduled task: $($ts.State)"
     } else {
         $controls.DotTask.Fill = $brushGray
-        $controls.TextTaskBadge.Text = "NOT CONFIGURED"
+        $controls.TextTaskBadge.Text = "NICHT EINGERICHTET"
         $controls.TextTaskBadge.Foreground = $brushGray
         $controls.TextTaskDetail.Text = "Not registered in Task Scheduler"
     }
@@ -249,12 +278,12 @@ function Update-DashboardStatus {
         if ($kitAvail) {
             $kitVersion = Get-HotwmKitVersion
             $controls.DotKit.Fill = $brushGreen
-            $controls.TextKitBadge.Text = "CONNECTED"
+            $controls.TextKitBadge.Text = "API GEFUNDEN"
             $controls.TextKitBadge.Foreground = $brushGreen
-            $controls.TextKitDetail.Text = "Kit v$($kitVersion): outputs.wiimote_hook + Input Matrix"
+            $controls.TextKitDetail.Text = "Kit v$($kitVersion): API-Einstiegspunkt gefunden; keine erfolgreiche Verbindung bestätigt."
         } else {
             $controls.DotKit.Fill = $brushGray
-            $controls.TextKitBadge.Text = "STANDALONE"
+            $controls.TextKitBadge.Text = "OHNE KIT"
             $controls.TextKitBadge.Foreground = $brushGray
             $controls.TextKitDetail.Text = "Kit not found (Running standalone mode)"
         }
@@ -364,13 +393,14 @@ function Invoke-HotwmKitStatusQuery {
 }
 
 $validateFolderAction = {
-    $previousRoot = $setupState.Root
     $setupState.RetroBatRoot = $null
     $setupState.Root = $null
     $candidate = [string]$controls.TextSetupFolder.Text
     if ([string]::IsNullOrWhiteSpace($candidate) -or -not (Test-Path -LiteralPath $candidate -PathType Container)) {
-        $controls.TextSetupFolderStatus.Text = 'Folder not found. Choose an existing RetroBat installation folder.'
+        $controls.TextSetupFolderStatus.Text = 'Ordner nicht gefunden. Wähle einen vorhandenen Emulator-Ordner.'
         $controls.TextSetupFolderStatus.Foreground = $brushRed
+        $controls.BrandSurprisedMascot.Visibility = [System.Windows.Visibility]::Visible
+        $controls.BrandCelebrateMascot.Visibility = [System.Windows.Visibility]::Collapsed
         return $false
     }
     try {
@@ -379,13 +409,17 @@ $validateFolderAction = {
         $markers = @('retrobat.exe', 'retrobat.ini', 'system', 'roms', 'bios')
         $foundMarkers = @($markers | Where-Object { $entries -contains $_ -or $entries -contains $_.ToUpperInvariant() })
         if ($foundMarkers.Count -eq 0) {
-            $controls.TextSetupFolderStatus.Text = "Folder is accessible, but its layout is not recognized as a RetroBat installation: $candidate"
+            $controls.TextSetupFolderStatus.Text = "Ordner ist lesbar, wurde aber nicht als RetroBat-Installation erkannt: $candidate"
             $controls.TextSetupFolderStatus.Foreground = $brushYellow
             $setupState.Root = $candidate
             if ($wizardState -and $wizardState.Session -and -not [string]::Equals([string]$wizardState.Session.Root, $candidate, [StringComparison]::OrdinalIgnoreCase)) {
                 $wizardState.Session = $null
-                $controls.TextWizardStatus.Text = 'Folder changed. The previous session was discarded; start a new session for this folder.'
+                $controls.TextWizardStatus.Text = 'Ordner geändert. Die vorige Sitzung wurde verworfen; starte eine neue Sitzung für diesen Ordner.'
             }
+            if ($controls.RadioQuickMode.IsChecked -and -not $wizardState.Session -and $wizardState.Dispatch) {
+                $null = & $wizardState.Dispatch 'Start' @{ Root=$candidate; Mode='Quick' }
+            }
+            $controls.BrandSurprisedMascot.Visibility = [System.Windows.Visibility]::Collapsed
             return $true
         }
         $controls.TextSetupFolder.Text = $candidate
@@ -393,44 +427,50 @@ $validateFolderAction = {
         $setupState.RetroBatRoot = $candidate
         if ($wizardState -and $wizardState.Session -and -not [string]::Equals([string]$wizardState.Session.Root, $candidate, [StringComparison]::OrdinalIgnoreCase)) {
             $wizardState.Session = $null
-            $controls.TextWizardStatus.Text = 'Folder changed. The previous session was discarded; start a new session for this folder.'
+            $controls.TextWizardStatus.Text = 'Ordner geändert. Die vorige Sitzung wurde verworfen; starte eine neue Sitzung für diesen Ordner.'
         }
-        $controls.TextSetupFolderStatus.Text = "RetroBat folder candidate found (markers: $($foundMarkers -join ', ')). Inspection is read-only; this does not confirm Hotwm readiness."
+        $controls.TextSetupFolderStatus.Text = "RetroBat-Ordner erkannt (Merkmale: $($foundMarkers -join ', ')). Die Prüfung ist nur lesend und bestätigt keine Einsatzbereitschaft."
         $controls.TextSetupFolderStatus.Foreground = $brushGreen
+        if ($controls.RadioQuickMode.IsChecked -and -not $wizardState.Session -and $wizardState.Dispatch) {
+            $null = & $wizardState.Dispatch 'Start' @{ Root=$candidate; Mode='Quick' }
+        }
+        $controls.BrandSurprisedMascot.Visibility = [System.Windows.Visibility]::Collapsed
         return $true
     } catch {
-        $controls.TextSetupFolderStatus.Text = "Folder could not be inspected: $($_.Exception.Message)"
+        $controls.TextSetupFolderStatus.Text = "Ordner konnte nicht geprüft werden: $($_.Exception.Message)"
         $controls.TextSetupFolderStatus.Foreground = $brushRed
+        $controls.BrandSurprisedMascot.Visibility = [System.Windows.Visibility]::Visible
+        $controls.BrandCelebrateMascot.Visibility = [System.Windows.Visibility]::Collapsed
         return $false
     }
 }.GetNewClosure()
 function Update-HotwmDiscoveryView {
     $controls.ListDiscoveredDevices.Items.Clear()
     if (-not (Get-Command Get-HotwmDeviceDiscovery -ErrorAction SilentlyContinue)) {
-        $controls.TextDiscoveryStatus.Text = 'Discovery module unavailable; PnP presence alone cannot confirm a playable Wiimote.'
-        $controls.ListDiscoveredDevices.Items.Add('No device identity or player mapping was confirmed.') | Out-Null
+        $controls.TextDiscoveryStatus.Text = 'Geräteerkennung nicht verfügbar. Ein Windows-Eintrag bestätigt keine Spielfunktion.'
+        $controls.ListDiscoveredDevices.Items.Add('Geräteidentität und Spielerzuordnung sind nicht bestätigt.') | Out-Null
         return
     }
     try {
         $discovery = Get-HotwmDeviceDiscovery
         $devices = @($discovery.Devices)
         if ($devices.Count -eq 0) {
-            $controls.TextDiscoveryStatus.Text = if ($discovery.Detected) { 'Candidates detected, but no stable device records were confirmed.' } else { 'No supported device records found.' }
+            $controls.TextDiscoveryStatus.Text = if ($discovery.Detected) { 'Gerätehinweis gefunden, aber keine stabile Gerätekennung bestätigt.' } else { 'Keine unterstützten Geräte gefunden.' }
             $controls.ListDiscoveredDevices.Items.Add([string]$discovery.Message) | Out-Null
             return
         }
         foreach ($device in $devices) {
-            $macText = if ($device.Mac -and $device.IdentityConfirmed) { [string]$device.Mac } else { 'Bluetooth identity unconfirmed' }
-            $playerText = if ($device.MappingConfirmed -and $device.Player) { [string]$device.Player } else { 'Player unassigned' }
-            $calibration = if ($device.ManuallyCalibrated) { 'manual calibration recorded' } else { 'manual calibration needed' }
-            $targetTest = if ($device.Tested) { 'target test recorded' } else { 'per-player target test needed' }
-            $instanceText = if ($controls.RadioExpertMode.IsChecked) { " — instance: $($device.InstanceId)" } else { "" }
-            $controls.ListDiscoveredDevices.Items.Add("Candidate: $($device.DisplayName) — $macText — $playerText — $calibration — $targetTest$instanceText") | Out-Null
+            $macText = if ($device.Mac -and $device.IdentityConfirmed) { [string]$device.Mac } else { 'Bluetooth-Identität offen' }
+            $playerText = if ($device.MappingConfirmed -and $device.Player) { "Spieler $($device.Player) zugeordnet" } else { 'Spieler nicht zugeordnet' }
+            $calibration = if ($device.ManuallyCalibrated) { 'manuelle Kalibrierung notiert' } else { 'Kalibrierung offen' }
+            $targetTest = if ($device.Tested) { 'Zieltest notiert' } else { 'Zieltest offen' }
+            $instanceText = if ($controls.RadioExpertMode.IsChecked) { " — Gerätekennung: $($device.InstanceId)" } else { "" }
+            $controls.ListDiscoveredDevices.Items.Add("Gerät: $($device.DisplayName) — $macText — $playerText — $calibration — $targetTest$instanceText") | Out-Null
         }
-        $controls.TextDiscoveryStatus.Text = "Read-only discovery: $($devices.Count) record(s). Verify identity and mapping manually; this is not a playable status."
+        $controls.TextDiscoveryStatus.Text = "Nur lesende Erkennung: $($devices.Count) Gerät(e). Identität und Zuordnung müssen manuell geprüft werden; Spielfunktion ist nicht bestätigt."
     } catch {
-        $controls.TextDiscoveryStatus.Text = "Discovery failed: $($_.Exception.Message)"
-        $controls.ListDiscoveredDevices.Items.Add('No discovery result is available; retry after checking Windows device access.') | Out-Null
+        $controls.TextDiscoveryStatus.Text = "Geräteerkennung fehlgeschlagen: $($_.Exception.Message)"
+        $controls.ListDiscoveredDevices.Items.Add('Prüfe den Windows-Gerätezugriff und versuche es erneut.') | Out-Null
     }
 }
 
@@ -457,7 +497,12 @@ $modeChanged = {
     $controls.TextQuickModeDetail.Visibility = if ($controls.RadioQuickMode.IsChecked) { [System.Windows.Visibility]::Visible } else { [System.Windows.Visibility]::Collapsed }
     $controls.TextCustomModeDetail.Visibility = if ($controls.RadioCustomMode.IsChecked) { [System.Windows.Visibility]::Visible } else { [System.Windows.Visibility]::Collapsed }
     $controls.TextExpertModeDetail.Visibility = if ($controls.RadioExpertMode.IsChecked) { [System.Windows.Visibility]::Visible } else { [System.Windows.Visibility]::Collapsed }
-    if ($controls.RadioExpertMode.IsChecked) { $controls.TextExpertModeDetail.Text = "Expert details — target: $($controls.TextSetupFolder.Text)`nRaw device instance IDs are shown in discovery rows while Expert is selected. Device presence alone never sets playable status." }
+    $relayActionVisibility = if ($controls.RadioQuickMode.IsChecked) { [System.Windows.Visibility]::Collapsed } else { [System.Windows.Visibility]::Visible }
+    $controls.BtnHeaderStartRelay.Visibility = $relayActionVisibility
+    $controls.BtnHeaderStopRelay.Visibility = $relayActionVisibility
+    $hasGunmotePreview = -not [string]::IsNullOrWhiteSpace([string]$controls.TextGunmotePreview.Text)
+    $controls.TextGunmotePreview.Visibility = if ($controls.RadioExpertMode.IsChecked -and $hasGunmotePreview) { [System.Windows.Visibility]::Visible } else { [System.Windows.Visibility]::Collapsed }
+    if ($controls.RadioExpertMode.IsChecked) { $controls.TextExpertModeDetail.Text = "Zielordner: $($controls.TextSetupFolder.Text)`nRohe Gerätekennungen und Prüfnachweise werden eingeblendet. Geräteerkennung allein bestätigt keine Spielfunktion." }
 }
 $modeChanged = $modeChanged.GetNewClosure()
 $controls.RadioQuickMode.Add_Checked($modeChanged)
@@ -472,6 +517,7 @@ $wizardDispatcher = {
         . $wizardScript
         if ($savedSessions) { $script:HotwmWizardSessions = $savedSessions }
         $controls.TextWizardStatus.Foreground = $brushGray
+        $controls.BrandSurprisedMascot.Visibility = [System.Windows.Visibility]::Collapsed
         switch ($Operation) {
             'Start' {
                 $root = if ($Argument -and $Argument.Root) { [string]$Argument.Root } else { [string]$setupState.Root }
@@ -580,9 +626,12 @@ $wizardDispatcher = {
     } catch {
         $controls.TextWizardStatus.Text = "Einrichtung: $($_.Exception.Message)"
         $controls.TextWizardStatus.Foreground = $brushRed
+        $controls.BrandSurprisedMascot.Visibility = [System.Windows.Visibility]::Visible
+        $controls.BrandCelebrateMascot.Visibility = [System.Windows.Visibility]::Collapsed
         return [pscustomobject]@{ Success=$false; Message=$_.Exception.Message; Session=$wizardState.Session }
     }
 }.GetNewClosure()
+$wizardState.Dispatch = $wizardDispatcher
 $renderWizard = {
     $session = $wizardState.Session
     $selectedDeviceKey = if ($wizardState.SelectedDeviceKey) { [string]$wizardState.SelectedDeviceKey } else { [string]$controls.CmbWizardDevice.SelectedValue }
@@ -604,6 +653,10 @@ $renderWizard = {
         else { $controls.CmbWizardDevice.SelectedIndex = 0; $wizardState.SelectedDeviceKey = [string]$controls.CmbWizardDevice.SelectedValue }
     } else { $wizardState.SelectedDeviceKey = $null }
     $checklist = $wizardState.Checklist
+    $controls.BrandCelebrateMascot.Visibility = if ($checklist -and $checklist.ChecksCompleteByUserAttestation) { [System.Windows.Visibility]::Visible } else { [System.Windows.Visibility]::Collapsed }
+    if ($checklist -and $checklist.ChecksCompleteByUserAttestation) {
+        $controls.TextWizardStatus.Text = 'Alle manuellen Prüfungen wurden von dir bestätigt. Nicht unabhängig verifiziert; keine Garantie auf Spielfunktion.'
+    }
     foreach ($step in $checklist.Steps) {
         if ($step.Type -eq 'ReadOnlyObservation') { foreach ($dep in $step.Items) { [void]$controls.ListWizardChecklist.Items.Add("Abhängigkeit $($dep.Name): $($dep.Status) — $($dep.Message)") }; continue }
         if ($step.Type -eq 'UserAttestation') {
@@ -873,8 +926,8 @@ function Show-HotwmReviewedFileProposal {
     $dialog.Height = 620
     $dialog.MinWidth = 560
     $dialog.MinHeight = 420
-    $dialog.Background = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#12131C')
-    $dialog.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#ECEFF4')
+    $dialog.Background = $window.FindResource('BackgroundBrush')
+    $dialog.Foreground = $window.FindResource('TextBrush')
     $root = New-Object System.Windows.Controls.Grid
     $root.Margin = [System.Windows.Thickness]::new(14)
     [void]$root.RowDefinitions.Add((New-Object System.Windows.Controls.RowDefinition -Property @{ Height=[System.Windows.GridLength]::Auto }))
@@ -884,7 +937,7 @@ function Show-HotwmReviewedFileProposal {
     [System.Windows.Controls.Grid]::SetRow($summary, 0)
     $targetText = New-Object System.Windows.Controls.TextBlock
     $guidance = if ($RequireGunmoteClosed) { "`nGunmote must be closed before this file change can be applied. This does not select or activate a layout." } else { '' }
-    $targetText.Text = "Target: $TargetPath`n$Effect$guidance"
+    $targetText.Text = "Ziel: $TargetPath`n$Effect$guidance"
     $targetText.TextWrapping = 'Wrap'
     $targetText.Margin = [System.Windows.Thickness]::new(0,0,0,10)
     [void]$summary.Children.Add($targetText)
@@ -896,8 +949,10 @@ function Show-HotwmReviewedFileProposal {
     $contentBox.VerticalScrollBarVisibility = 'Auto'
     $contentBox.HorizontalScrollBarVisibility = 'Auto'
     $contentBox.FontFamily = New-Object System.Windows.Media.FontFamily('Consolas')
-    $contentBox.Background = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#0E1017')
-    $contentBox.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#ECEFF4')
+    $contentBox.Background = $window.FindResource('BackgroundBrush')
+    $contentBox.Foreground = $window.FindResource('TextBrush')
+    $contentBox.BorderBrush = $window.FindResource('BorderBrush')
+    $contentBox.BorderThickness = [System.Windows.Thickness]::new(1)
     [System.Windows.Controls.Grid]::SetRow($contentBox, 1)
     [void]$root.Children.Add($contentBox)
     $buttons = New-Object System.Windows.Controls.StackPanel
@@ -906,13 +961,13 @@ function Show-HotwmReviewedFileProposal {
     $buttons.Margin = [System.Windows.Thickness]::new(0,10,0,0)
     [System.Windows.Controls.Grid]::SetRow($buttons, 2)
     $approve = New-Object System.Windows.Controls.Button
-    $approve.Content = 'Approve this file change'
+    $approve.Content = 'Dateiänderung bestätigen'
     $approve.Margin = [System.Windows.Thickness]::new(0,0,8,0)
     $approve.Padding = [System.Windows.Thickness]::new(12,6,12,6)
     $approve.IsDefault = $true
     $approve.Add_Click({ $dialog.DialogResult = $true; $dialog.Close() }.GetNewClosure())
     $cancel = New-Object System.Windows.Controls.Button
-    $cancel.Content = 'Cancel'
+    $cancel.Content = 'Abbrechen'
     $cancel.Padding = [System.Windows.Thickness]::new(12,6,12,6)
     $cancel.IsCancel = $true
     $cancel.Add_Click({ $dialog.DialogResult = $false; $dialog.Close() }.GetNewClosure())
@@ -953,8 +1008,16 @@ $gunmoteDispatcher = {
         $gunmoteState.Applied = $script:HotwmGunmoteApplied
         if (-not $gunmoteState.Initialized) {
             $gunmoteState.Catalog = Get-HotwmGunmoteLayouts
+            $presetDescriptions = @{
+                Menu = 'Menütasten ohne Zeigersteuerung.'
+                Pad43 = 'Linker Analogstick als Zeiger für 4:3-Bildschirme.'
+                TP = 'Linker Stick bewegt den Zeiger, rechter Stick steuert TeknoParrot.'
+                Mouse = 'Zeiger und Tasten als Mausbelegung.'
+                Mouse43 = 'Mauszeiger mit Anpassung für 4:3-Bildschirme.'
+                MouseShoot = 'Mauszeiger mit separater Abzugstaste außerhalb des Bildes.'
+            }
             $kinds = @($gunmoteState.Catalog.layouts.PSObject.Properties | ForEach-Object {
-                [pscustomobject]@{ Kind=$_.Name; Title=$_.Value.Title }
+                [pscustomobject]@{ Kind=$_.Name; Title=$_.Value.Title; Description=$presetDescriptions[$_.Name]; DisplayTitle=('{0} — {1}' -f $_.Value.Title, $presetDescriptions[$_.Name]) }
             })
             $controls.CmbGunmoteKind.ItemsSource = $kinds
             $controls.CmbGunmoteKind.SelectedIndex = 0
@@ -1038,7 +1101,7 @@ $gunmoteDispatcher = {
                 $fileName = if ($Argument -and $Argument.FileName) { [string]$Argument.FileName } else { [string]$controls.TextGunmoteFileName.Text }
                 $action = New-HotwmGunmoteLayoutAction -Layout $layout -KeymapsDir $directory -FileName $fileName
                 $controls.TextGunmotePreview.Text = $action.ProposedContent
-                $controls.TextGunmotePreview.Visibility = [System.Windows.Visibility]::Visible
+                $controls.TextGunmotePreview.Visibility = if ($controls.RadioExpertMode.IsChecked) { [System.Windows.Visibility]::Visible } else { [System.Windows.Visibility]::Collapsed }
                 $summary = "Save the edited layout '$($layout.Title)' to $($action.TargetPath). This writes the file only; it will not select it or restart Gunmote."
                 $confirm = if ($Argument -and $Argument.Confirm) { $Argument.Confirm } else {
                     $display = $summary; $content = $action.ProposedContent; $target = $action.TargetPath
@@ -1062,7 +1125,7 @@ $gunmoteDispatcher = {
                 $keymapsPath = if ($Argument -and $Argument.KeymapsPath) { [string]$Argument.KeymapsPath } else { [string]$controls.TextGunmoteChooserPath.Text }
                 $action = New-HotwmGunmoteChooserAction -LayoutResult $gunmoteState.LayoutResult -KeymapsPath $keymapsPath -LayoutTitle ([string]$gunmoteState.SavedLayoutTitle)
                 $controls.TextGunmotePreview.Text = $action.ProposedContent
-                $controls.TextGunmotePreview.Visibility = [System.Windows.Visibility]::Visible
+                $controls.TextGunmotePreview.Visibility = if ($controls.RadioExpertMode.IsChecked) { [System.Windows.Visibility]::Visible } else { [System.Windows.Visibility]::Collapsed }
                 $summary = "Add '$($gunmoteState.SavedLayoutTitle)' pointing to $($gunmoteState.SavedPath) in $($action.TargetPath). This does not select or activate the layout."
                 $confirm = if ($Argument -and $Argument.Confirm) { $Argument.Confirm } else {
                     $display = $summary; $content = $action.ProposedContent; $target = $action.TargetPath

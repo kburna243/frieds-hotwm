@@ -27,7 +27,7 @@
         $script:ui.Controls.RadioExpertMode | Should Not Be $null
         $script:ui.Controls.BtnRefreshDiscovery | Should Not Be $null
         $script:ui.Controls.ListDiscoveredDevices | Should Not Be $null
-        $script:ui.Controls.TextDiscoveryStatus.Text | Should Match 'not|Not|PnP'
+        $script:ui.Controls.TextDiscoveryStatus.Text | Should Match 'Noch nicht geprüft'
         $script:ui.Controls.TextConfigSaveStatus | Should Not Be $null
     }
 
@@ -35,14 +35,57 @@
         $configBefore = $script:ui.Config
         $script:ui.Controls.TextSetupFolder.Text = $script:validTarget
         $script:ui.Controls.BtnValidateSetupFolder.RaiseEvent(([System.Windows.RoutedEventArgs]::new([System.Windows.Controls.Button]::ClickEvent)))
-        $script:ui.Controls.TextSetupFolderStatus.Text | Should Match 'read-only'
+        $script:ui.Controls.TextSetupFolderStatus.Text | Should Match 'nur lesend'
         $script:ui.Config | Should Be $configBefore
         $script:ui.Controls.TextSetupFolder.Text = $script:unknownTarget
         $script:ui.Controls.BtnValidateSetupFolder.RaiseEvent(([System.Windows.RoutedEventArgs]::new([System.Windows.Controls.Button]::ClickEvent)))
-        $script:ui.Controls.TextSetupFolderStatus.Text | Should Match 'not recognized'
+        $script:ui.Controls.TextSetupFolderStatus.Text | Should Match 'nicht.*erkannt'
+        $script:ui.WizardSession.Session | Should Not Be $null
+        $script:ui.WizardSession.Session.Ready | Should Be $false
         $script:ui.Controls.TextSetupFolder.Text = (Join-Path $script:folderFixtures 'missing')
         $script:ui.Controls.BtnValidateSetupFolder.RaiseEvent(([System.Windows.RoutedEventArgs]::new([System.Windows.Controls.Button]::ClickEvent)))
-        $script:ui.Controls.TextSetupFolderStatus.Text | Should Match 'not found'
+        $script:ui.Controls.TextSetupFolderStatus.Text | Should Match 'nicht gefunden'
+    }
+
+    It 'clears the actionable error mascot after either kind of folder validates successfully' {
+        $missing = Join-Path $script:folderFixtures 'missing-again'
+        $script:ui.Controls.TextSetupFolder.Text = $missing
+        (& $script:ui.ValidateFolder) | Should Be $false
+        $script:ui.Controls.BrandSurprisedMascot.Visibility | Should Be ([Windows.Visibility]::Visible)
+
+        $script:ui.Controls.TextSetupFolder.Text = $script:validTarget
+        (& $script:ui.ValidateFolder) | Should Be $true
+        $script:ui.Controls.BrandSurprisedMascot.Visibility | Should Be ([Windows.Visibility]::Collapsed)
+
+        $script:ui.Controls.TextSetupFolder.Text = $missing
+        (& $script:ui.ValidateFolder) | Should Be $false
+        $script:ui.Controls.BrandSurprisedMascot.Visibility | Should Be ([Windows.Visibility]::Visible)
+        $script:ui.Controls.TextSetupFolder.Text = $script:unknownTarget
+        (& $script:ui.ValidateFolder) | Should Be $true
+        $script:ui.Controls.BrandSurprisedMascot.Visibility | Should Be ([Windows.Visibility]::Collapsed)
+    }
+
+    It 'wraps the manual-attestation status at the minimum window width' {
+        $script:ui.Window.Width = 850
+        $script:ui.Controls.MainTabs.SelectedIndex = 0
+        $script:ui.Controls.TextWizardStatus.Text = 'Alle manuellen Prüfungen wurden von dir bestätigt. Nicht unabhängig verifiziert; keine Garantie auf Spielfunktion.'
+        $script:ui.Window.Show()
+        try {
+            $script:ui.Window.UpdateLayout()
+            $script:ui.Controls.TextWizardStatus.TextWrapping | Should Be ([Windows.TextWrapping]::Wrap)
+            $script:ui.Controls.TextWizardStatus.ActualWidth | Should BeGreaterThan 300
+            $script:ui.Controls.TextWizardStatus.IsVisible | Should Be $true
+            $script:ui.Controls.BtnConfirmTrigger.ActualWidth | Should BeGreaterThan 0
+            $node = [System.Windows.DependencyObject]$script:ui.Controls.BtnConfirmTrigger
+            $scrollViewer = $null
+            while ($node -and -not $scrollViewer) {
+                if ($node -is [System.Windows.Controls.ScrollViewer]) { $scrollViewer = $node; break }
+                $node = [System.Windows.Media.VisualTreeHelper]::GetParent($node)
+            }
+            $scrollViewer | Should Not Be $null
+            $buttonBottomRight = $script:ui.Controls.BtnConfirmTrigger.TranslatePoint([Windows.Point]::new($script:ui.Controls.BtnConfirmTrigger.ActualWidth, $script:ui.Controls.BtnConfirmTrigger.ActualHeight), $scrollViewer)
+            ($buttonBottomRight.X + $script:ui.Controls.BtnConfirmTrigger.Margin.Right -le $scrollViewer.ViewportWidth) | Should Be $true
+        } finally { $script:ui.Window.Hide() }
     }
 
     It 'passes the validated RetroBat root to Kit status calls' {
@@ -60,7 +103,84 @@
         $script:ui.Controls.TextExpertModeDetail.Visibility | Should Be ([Windows.Visibility]::Visible)
         $script:ui.Controls.RadioQuickMode.IsChecked = $true
         $script:ui.Controls.TextQuickModeDetail.Visibility | Should Be ([Windows.Visibility]::Visible)
+        $script:ui.Controls.BtnHeaderStartRelay.Visibility | Should Be ([Windows.Visibility]::Collapsed)
+        $script:ui.Controls.RelayHeaderStatus.Text | Should Match 'Rückstoßdienst'
         $script:ui.Controls.SliderHoldMs.Value | Should Be 190
+    }
+
+    It 'loads the semantic theme and local mascots from any current directory' {
+        $theme = $script:ui.Window.FindResource('BackgroundBrush')
+        $theme.Color.ToString() | Should Be '#FF0E1B23'
+        $script:ui.Controls.BrandFriendlyMascot.Source | Should Not Be $null
+        $script:ui.Controls.BrandControllerMascot.Source | Should Not Be $null
+        $pushError = $null
+        Push-Location $env:TEMP
+        try { $otherUi = & $script:dashboardScript -NoShow }
+        finally { Pop-Location }
+        try {
+            $otherUi.Window.FindResource('TextBrush').Color.ToString() | Should Be '#FFF6F2E9'
+            $otherUi.Controls.BrandFriendlyMascot.Source.UriSource.LocalPath | Should Be (Join-Path $script:repoRoot 'gui\assets\brand\character-friendly.png')
+        } finally { $otherUi.Window.Close() }
+    }
+
+    It 'keeps native selections themed and explains preset purpose when the choice changes' {
+        $combo = $script:ui.Controls.CmbGunmoteKind
+        $combo.Template | Should Not Be $null
+        $script:ui.Controls.GridGameProfiles.Columns.Count | Should BeGreaterThan 0
+        $script:ui.Window.FindResource([System.Windows.Controls.DataGridRow]).TargetType | Should Be ([System.Windows.Controls.DataGridRow])
+        $script:ui.Window.FindResource([System.Windows.Controls.DataGridCell]).TargetType | Should Be ([System.Windows.Controls.DataGridCell])
+        $combo.SelectedItem.Description | Should Match 'ohne Zeiger'
+        $combo.SelectedIndex = 1
+        $combo.SelectedItem.Kind | Should Be 'Pad43'
+        $script:ui.Controls.TextGunmoteKindHelp.Text | Should Match 'Analogstick.*4:3'
+        $tab = $script:ui.Window.FindName('MainTabs').Items[0]
+        $tab.Template | Should Not Be $null
+        $script:ui.Window.FindResource('StatusWarningBrush').Color.ToString() | Should Be '#FFFFC857'
+        @($script:ui.Window.FindResource([System.Windows.Controls.TextBlock]).Setters | Where-Object { $_.Property -eq [System.Windows.Controls.TextBlock]::ForegroundProperty }).Count | Should Be 0
+    }
+
+    It 'renders selected preset names in the live WPF ComboBox templates' {
+        function Find-HotwmRenderedText([System.Windows.DependencyObject]$Node) {
+            if ($Node -is [System.Windows.Controls.TextBlock]) { return [string]$Node.Text }
+            if ($Node -is [System.Windows.Media.Visual] -or $Node -is [System.Windows.Media.Media3D.Visual3D]) {
+                for ($i=0; $i -lt [System.Windows.Media.VisualTreeHelper]::GetChildrenCount($Node); $i++) {
+                    $texts = @(Find-HotwmRenderedText ([System.Windows.Media.VisualTreeHelper]::GetChild($Node,$i)))
+                    if ($texts.Count) { return $texts[0] }
+                }
+            }
+        }
+        function Assert-HotwmComboDisplayedText($Combo, [int]$TabIndex, [string]$Expected) {
+            $script:ui.Controls.MainTabs.SelectedIndex = $TabIndex
+            $script:ui.Window.UpdateLayout()
+            $Combo.BringIntoView()
+            $Combo.ApplyTemplate() | Out-Null
+            $script:ui.Window.UpdateLayout()
+            $presenter = $Combo.Template.FindName('SelectionContent',$Combo)
+            $presenter | Should Not Be $null
+            $presenter.ApplyTemplate() | Out-Null
+            $actual = Find-HotwmRenderedText $presenter
+            $actual | Should Be $Expected
+        }
+
+        $null = & $script:ui.ProfileDispatch 'Initialize' $null
+        $effect = $script:ui.Controls.CmbEffectPreset.SelectedItem
+        Assert-HotwmComboDisplayedText $script:ui.Controls.CmbEffectPreset 2 ([string]$effect.Name)
+        $button = $script:ui.Controls.CmbButtonTemplate.SelectedItem
+        Assert-HotwmComboDisplayedText $script:ui.Controls.CmbButtonTemplate 3 ([string]$button.Name)
+        $gunmote = $script:ui.Controls.CmbGunmoteKind.SelectedItem
+        Assert-HotwmComboDisplayedText $script:ui.Controls.CmbGunmoteKind 3 ([string]$gunmote.DisplayTitle)
+    }
+
+    It 'keeps an inspected Quick session and its assignment when the same folder is validated again' {
+        $records = @([pscustomobject]@{ InstanceId='BTHENUM\DEV_001122334455\7&123&0&BLUETOOTHDEVICE_001122334455'; FriendlyName='Nintendo RVL-CNT-01'; Status='OK' })
+        $started = & $script:ui.WizardDispatch 'Start' @{ Root=$script:validTarget; Mode='Quick'; DeviceRecords=$records; DependencyRecords=@() }
+        $null = & $script:ui.WizardDispatch 'Assign' @{ DeviceKey=$started.Session.Devices[0].DeviceKey; Player=1 }
+        $sessionId = $started.Session.SessionId
+        $script:ui.Controls.TextSetupFolder.Text = $script:validTarget
+        $script:ui.Controls.BtnValidateSetupFolder.RaiseEvent(([System.Windows.RoutedEventArgs]::new([System.Windows.Controls.Button]::ClickEvent)))
+        $script:ui.WizardSession.Session.SessionId | Should Be $sessionId
+        $script:ui.WizardSession.Session.Devices[0].DesiredPlayer | Should Be 1
+        $script:ui.WizardSession.Session.Ready | Should Be $false
     }
 
     It 'exposes guided session controls and preserves one session across modes' {
@@ -209,9 +329,11 @@
     }
     It 'states that detection is not readiness and calibration remains manual' {
         $xaml = [IO.File]::ReadAllText((Join-Path $script:repoRoot 'gui\HotwmDashboard.xaml'))
-        $xaml | Should Match 'does not prove Bluetooth identity'
-        $xaml | Should Match 'Calibration is manual'
-        $xaml | Should Match 'Pairing is semi-automatic'
+        $xaml | Should Match 'Spielfunktion'
+        $xaml | Should Match 'Kalibrierung erfolgen manuell'
+        $xaml | Should Match 'Windows-Bluetooth-Einstellungen'
+        $script:ui.Controls.TextWiimoteBadge.Text | Should Not Be 'CONNECTED'
+        $script:ui.Controls.TextKitBadge.Text | Should Not Be 'CONNECTED'
     }
 
     It 'copies and imports editable effect profiles, then requires a proposal approval to apply' {
@@ -362,6 +484,47 @@
         $built.Layout.Title | Should Be 'Editable test layout'
         $built.Layout.All.OnScreen.A | Should Be '360.custom-fire'
         $built.Layout.All.OffScreen.A | Should Be '360.custom-reload'
+        $script:ui.Controls.TextGunmotePreview.Visibility | Should Be ([Windows.Visibility]::Collapsed)
+    }
+
+    It 'keeps layout and chooser previews in Expert mode while reviewing in every mode' {
+        $null = & $script:ui.GunmoteDispatch 'CopyLayout' $null
+        $directory = Join-Path $script:folderFixtures 'GunmoteModePreview'
+        [void][IO.Directory]::CreateDirectory($directory)
+        $target = Join-Path $directory 'mode-preview.json'
+        $script:ui.Controls.RadioQuickMode.IsChecked = $true
+        $save = & $script:ui.GunmoteDispatch 'SaveLayout' @{
+            KeymapsDir=$directory; FileName='mode-preview.json'
+            Confirm={ param($proposal) $proposal.TargetPath | Should Be ([IO.Path]::GetFullPath($target)); return $true }
+            ProcessChecker={ return $true }
+        }
+        $save.Success | Should Be $true
+        (Test-Path -LiteralPath $target) | Should Be $true
+        $script:ui.Controls.TextGunmotePreview.Text | Should Match '"Title"'
+        $script:ui.Controls.TextGunmotePreview.Visibility | Should Be ([Windows.Visibility]::Collapsed)
+
+        $script:ui.Controls.RadioExpertMode.IsChecked = $true
+        $script:ui.Controls.TextGunmotePreview.Visibility | Should Be ([Windows.Visibility]::Visible)
+        $script:ui.Controls.RadioCustomMode.IsChecked = $true
+        $script:ui.Controls.TextGunmotePreview.Visibility | Should Be ([Windows.Visibility]::Collapsed)
+
+        $chooserPath = Join-Path $directory 'Keymaps.json'
+        $originalChooser = '{"LayoutChooser":[]}'
+        [IO.File]::WriteAllText($chooserPath, $originalChooser, (New-Object Text.UTF8Encoding($false)))
+        $chooserConfirmations = New-Object 'System.Collections.Generic.List[object]'
+        $chooser = & $script:ui.GunmoteDispatch 'AddChooser' @{
+            KeymapsPath=$chooserPath
+            Confirm={ param($proposal) [void]$chooserConfirmations.Add($proposal); return $false }.GetNewClosure()
+            ProcessChecker={ return $true }
+        }
+        $chooser.Success | Should Be $false
+        $chooserConfirmations.Count | Should Be 1
+        $script:ui.Controls.TextGunmotePreview.Text | Should Match 'LayoutChooser'
+        $script:ui.Controls.TextGunmotePreview.Visibility | Should Be ([Windows.Visibility]::Collapsed)
+        [IO.File]::ReadAllText($chooserPath, [Text.Encoding]::UTF8) | Should Be $originalChooser
+        $script:ui.Controls.RadioExpertMode.IsChecked = $true
+        $script:ui.Controls.TextGunmotePreview.Visibility | Should Be ([Windows.Visibility]::Visible)
+        $script:ui.Controls.RadioQuickMode.IsChecked = $true
         $script:ui.Controls.TextGunmotePreview.Visibility | Should Be ([Windows.Visibility]::Collapsed)
     }
 
