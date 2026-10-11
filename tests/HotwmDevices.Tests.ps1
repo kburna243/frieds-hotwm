@@ -10,9 +10,10 @@ Describe 'hotwm read-only device identity and player mapping' {
         $result = Resolve-HotwmPlayerMappings -Devices @($devices[1], $devices[0]) -Mappings @(
             @{ Mac='AA:BB:CC:DD:EE:FF'; Player=2 }, @{ Mac='00:11:22:33:44:55'; Player=1 }
         )
-        $result[0].Player | Should Be 1
-        $result[1].Player | Should Be 2
+        $result[0].DesiredPlayer | Should Be 1
+        $result[1].DesiredPlayer | Should Be 2
         $result[0].MappingConfirmed | Should Be $true
+        $result[0].RuntimeGunmoteSlot | Should Be $null
         $result[0].Ready | Should Be $false
     }
 
@@ -81,5 +82,49 @@ Describe 'hotwm read-only device identity and player mapping' {
         $result.DolphinBarDetected | Should Be $true
         $result.Devices.Count | Should Be 0
         $result.Message | Should Match 'individual Wiimote identity is not exposed'
+    }
+
+    It 'extracts the stable MAC from a supported Nintendo HID parent identifier' {
+        $parent = 'BTHENUM\{00001124-0000-1000-8000-00805F9B34FB}_VID&0002057E_PID&0306&AABBCCDDEEFF_C00000000'
+        $result = Get-HotwmDeviceDiscovery -DeviceRecords @(
+            @{ FriendlyName='HID-compliant game controller'; InstanceId='HID\{00001124-0000-1000-8000-00805F9B34FB}_VID&0002057E_PID&0306&1'; Status='OK'; Properties=@(@{ KeyName='DEVPKEY_Device_Parent'; Data=$parent }) }
+        )
+        $result.Devices.Count | Should Be 1
+        $result.Devices[0].Mac | Should Be 'AA:BB:CC:DD:EE:FF'
+        (@($result.Devices[0].IdentitySources) -contains 'NintendoHidParent') | Should Be $true
+        $result.Devices[0].IdentityConfirmed | Should Be $true
+        $result.Devices[0].Ready | Should Be $false
+    }
+
+    It 'rejects unrelated HID devices and Bluetooth adapters' {
+        $result = Get-HotwmDeviceDiscovery -DeviceRecords @(
+            @{ FriendlyName='Other HID device'; InstanceId='HID\{11111111-0000-1000-8000-00805F9B34FB}_VID&0002057E_PID&0306&1'; Status='OK'; ParentInstanceId='BTHENUM\{x}&AABBCCDDEEFF_C00000000' },
+            @{ FriendlyName='Bluetooth Device'; InstanceId='BTHENUM\DEV_AABBCCDDEEFF\7&1'; Status='OK' }
+        )
+        $result.Devices.Count | Should Be 0
+    }
+
+    It 'keeps a known Nintendo HID device detected but identity-unconfirmed when parent is missing' {
+        $result = Get-HotwmDeviceDiscovery -DeviceRecords @(
+            @{ FriendlyName='HID-compliant game controller'; InstanceId='HID\{00001124-0000-1000-8000-00805F9B34FB}_VID&0002057E_PID&0330&1'; Status='OK' }
+        )
+        $result.Detected | Should Be $true
+        $result.Devices.Count | Should Be 1
+        $result.Devices[0].IdentityConfirmed | Should Be $false
+        $result.Devices[0].Mac | Should Be $null
+        $result.Devices[0].Ready | Should Be $false
+    }
+
+    It 'collapses a Bluetooth device and its proven Nintendo HID parent into one controller' {
+        $parent = 'BTHENUM\{00001124-0000-1000-8000-00805F9B34FB}_VID&0002057E_PID&0330&AABBCCDDEEFF_C00000000'
+        $result = Get-HotwmDeviceDiscovery -DeviceRecords @(
+            @{ FriendlyName='Nintendo RVL-CNT-01'; InstanceId='BTHENUM\DEV_AABBCCDDEEFF\7&1'; Status='OK' },
+            @{ FriendlyName='HID-compliant game controller'; InstanceId='HID\{00001124-0000-1000-8000-00805F9B34FB}_VID&0002057E_PID&0330&1'; Status='OK'; ParentInstanceId=$parent }
+        )
+        $result.Devices.Count | Should Be 1
+        $result.Devices[0].Mac | Should Be 'AA:BB:CC:DD:EE:FF'
+        (@($result.Devices[0].IdentitySources) -contains 'BluetoothPnP') | Should Be $true
+        (@($result.Devices[0].IdentitySources) -contains 'NintendoHidParent') | Should Be $true
+        $result.Devices[0].InstanceIds.Count | Should Be 2
     }
 }

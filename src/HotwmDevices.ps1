@@ -34,6 +34,9 @@ function ConvertTo-HotwmBluetoothMac {
         if ($candidate -match '(?i)^BTH(?:ENUM|LEDEVICE)\\.*?DEV_([0-9A-F]{12})(?:\\|$)') {
             $hex = $Matches[1].ToUpperInvariant()
         }
+        elseif ($candidate -match '(?i)^BTHENUM\\.*&([0-9A-F]{12})_C00000000$') {
+            $hex = $Matches[1].ToUpperInvariant()
+        }
         elseif ($candidateRecord.IsAddress -and $candidate -match '(?i)^(?:0x)?([0-9A-F]{12}|[0-9A-F]{2}(?:[:-][0-9A-F]{2}){5})$') {
             $hex = $Matches[1].ToUpperInvariant()
             $hex = $hex -replace '[:-]', ''
@@ -42,6 +45,15 @@ function ConvertTo-HotwmBluetoothMac {
         if ($hex -match '^[0-9A-F]{12}$') {
             return (0,2,4,6,8,10 | ForEach-Object { $hex.Substring($_, 2) }) -join ':'
         }
+    }
+    return $null
+}
+
+function Get-HotwmDevicePropertyValue {
+    param([object]$DeviceRecord, [string]$KeyName)
+    if ($DeviceRecord.ParentInstanceId -and $KeyName -eq 'DEVPKEY_Device_Parent') { return [string]$DeviceRecord.ParentInstanceId }
+    foreach ($property in @($DeviceRecord.Properties)) {
+        if ([string]$property.KeyName -eq $KeyName) { return [string]$property.Data }
     }
     return $null
 }
@@ -59,18 +71,25 @@ function Get-HotwmDeviceDiscovery {
             if (-not (Get-Command Get-PnpDevice -ErrorAction SilentlyContinue)) { throw 'Get-PnpDevice is unavailable' }
             $records = @(Get-PnpDevice -PresentOnly -ErrorAction Stop)
             foreach ($record in $records) {
-                if ($record.InstanceId -notmatch '^(?i)BTH(?:ENUM|LEDEVICE)\\' -or
-                    ($record.FriendlyName -notmatch '(?i)Wiimote|RVL-CNT-01|Nintendo RVL' -and $record.InstanceId -notmatch '(?i)RVL-CNT-01|Nintendo.*Wiimote')) { continue }
+                $isNintendoHid = $record.InstanceId -match '(?i)^HID\\\{00001124-0000-1000-8000-00805F9B34FB\}_VID&0002057E_PID&03(?:06|30)(?:&|\\|$)'
+                $isNamedBluetoothWiimote = $record.InstanceId -match '^(?i)BTH(?:ENUM|LEDEVICE)\\' -and
+                    ($record.FriendlyName -match '(?i)Wiimote|RVL-CNT-01|Nintendo RVL' -or $record.InstanceId -match '(?i)RVL-CNT-01|Nintendo.*Wiimote')
+                if (-not $isNintendoHid -and -not $isNamedBluetoothWiimote) { continue }
                 try {
-                    $record | Add-Member -NotePropertyName Properties -NotePropertyValue @(
-                        Get-PnpDeviceProperty -InstanceId $record.InstanceId -ErrorAction Stop
-                    ) -Force
+                    if ($isNintendoHid) {
+                        $parent = Get-PnpDeviceProperty -InstanceId $record.InstanceId -KeyName 'DEVPKEY_Device_Parent' -ErrorAction Stop
+                        $record | Add-Member -NotePropertyName Properties -NotePropertyValue @($parent) -Force
+                    } else {
+                        $record | Add-Member -NotePropertyName Properties -NotePropertyValue @(
+                            Get-PnpDeviceProperty -InstanceId $record.InstanceId -ErrorAction Stop
+                        ) -Force
+                    }
                 } catch { }
             }
         } catch { $queryAvailable = $false }
     }
 
-    $discovered = New-Object 'System.Collections.Generic.List[object]'
+    $candidates = New-Object 'System.Collections.Generic.List[object]'
     $barDetected = $false
     foreach ($record in $records) {
         $name = [string]$record.FriendlyName
@@ -78,28 +97,75 @@ function Get-HotwmDeviceDiscovery {
         $isBluetooth = $instanceId -match '^(?i)BTH(?:ENUM|LEDEVICE)\\'
         $isWiimote = ($name -match '(?i)Wiimote|RVL-CNT-01|Nintendo RVL') -or
             ($instanceId -match '(?i)RVL-CNT-01|Nintendo.*Wiimote')
+        $isNintendoHid = $instanceId -match '(?i)^HID\\\{00001124-0000-1000-8000-00805F9B34FB\}_VID&0002057E_PID&03(?:06|30)(?:&|\\|$)'
         if ($name -match '(?i)DolphinBar') { $barDetected = $true }
-        if (-not $isBluetooth -or -not $isWiimote -or $record.Status -ne 'OK') { continue }
-        $mac = ConvertTo-HotwmBluetoothMac -DeviceRecord $record
-        $discovered.Add([pscustomobject]@{
-            Mac = $mac
-            DisplayName = $name
-            InstanceId = $instanceId
-            Player = $null
-            Detected = $true
-            IdentityConfirmed = [bool]$mac
-            MappingConfirmed = $false
-            ManuallyCalibrated = $false
-            Tested = $false
-            Ready = $false
-        })
+        if ($record.Status -ne 'OK') { continue }
+        if ($isBluetooth -and $isWiimote) {
+            $mac = ConvertTo-HotwmBluetoothMac -DeviceRecord $record
+            $candidates.Add([pscustomobject]@{ Mac=$mac; Source='BluetoothPnP'; DisplayName=$name; InstanceId=$instanceId; ParentInstanceId=$null })
+        } elseif ($isNintendoHid) {
+            $parentId = Get-HotwmDevicePropertyValue -DeviceRecord $record -KeyName 'DEVPKEY_Device_Parent'
+            $mac = if ($parentId) { ConvertTo-HotwmBluetoothMac -DeviceRecord ([pscustomobject]@{ InstanceId=$parentId }) } else { $null }
+            $displayName = if ($name) { $name } else { 'Nintendo Wiimote HID controller' }
+            $candidates.Add([pscustomobject]@{ Mac=$mac; Source='NintendoHidParent'; DisplayName=$displayName; InstanceId=$instanceId; ParentInstanceId=$parentId })
+        }
     }
 
-    foreach ($group in @($discovered | Where-Object { $_.Mac } | Group-Object Mac)) {
-        if ($group.Count -gt 1) {
-            foreach ($device in $group.Group) {
-                $device.IdentityConfirmed = $false
-                $device.Mac = $null
+    $discovered = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($item in @($candidates | Where-Object { -not $_.Mac })) {
+        $discovered.Add([pscustomobject]@{
+            Mac = $null; DisplayName = $item.DisplayName; InstanceId = $item.InstanceId
+            InstanceIds = @($item.InstanceId); IdentitySources = @($item.Source); Detected = $true
+            IdentityConfirmed = $false; DesiredPlayer = $null; Player = $null; RuntimeGunmoteSlot = $null
+            MappingConfirmed = $false; ManuallyCalibrated = $false; Tested = $false; Ready = $false
+        })
+    }
+    foreach ($group in @($candidates | Where-Object { $_.Mac } | Group-Object Mac)) {
+        $items = @($group.Group)
+        $btItems = @($items | Where-Object Source -eq 'BluetoothPnP')
+        $hidItems = @($items | Where-Object Source -eq 'NintendoHidParent')
+        $canCollapseAliases = $items.Count -eq 1 -or
+            ($btItems.Count -le 1 -and $hidItems.Count -gt 0 -and
+                @($hidItems | Where-Object { $_.ParentInstanceId -and (ConvertTo-HotwmBluetoothMac -DeviceRecord ([pscustomobject]@{ InstanceId=$_.ParentInstanceId })) -eq $group.Name }).Count -eq $hidItems.Count -and
+                (($btItems.Count -eq 1) -or @($hidItems.ParentInstanceId | Select-Object -Unique).Count -eq 1))
+        if ($canCollapseAliases) {
+            $primary = if ($hidItems.Count -gt 0) { $hidItems[0] } else { $btItems[0] }
+            $sources = @($items | Select-Object -ExpandProperty Source -Unique)
+            $ids = @($items | Select-Object -ExpandProperty InstanceId -Unique)
+            $discovered.Add([pscustomobject]@{
+                Mac = $group.Name
+                DisplayName = $primary.DisplayName
+                InstanceId = $primary.InstanceId
+                InstanceIds = $ids
+                IdentitySources = $sources
+                Detected = $true
+                IdentityConfirmed = $true
+                DesiredPlayer = $null
+                Player = $null
+                RuntimeGunmoteSlot = $null
+                MappingConfirmed = $false
+                ManuallyCalibrated = $false
+                Tested = $false
+                Ready = $false
+            })
+        } else {
+            foreach ($item in $items) {
+                $discovered.Add([pscustomobject]@{
+                    Mac = $null
+                    DisplayName = $item.DisplayName
+                    InstanceId = $item.InstanceId
+                    InstanceIds = @($item.InstanceId)
+                    IdentitySources = @($item.Source)
+                    Detected = $true
+                    IdentityConfirmed = $false
+                    DesiredPlayer = $null
+                    Player = $null
+                    RuntimeGunmoteSlot = $null
+                    MappingConfirmed = $false
+                    ManuallyCalibrated = $false
+                    Tested = $false
+                    Ready = $false
+                })
             }
         }
     }
@@ -145,7 +211,9 @@ function Resolve-HotwmPlayerMappings {
         }
         $copy = [ordered]@{}
         foreach ($property in $device.PSObject.Properties) { $copy[$property.Name] = $property.Value }
-        $copy['Player'] = $player
+        $copy['DesiredPlayer'] = $player
+        $copy['Player'] = $player # Compatibility alias; this is the desired profile player, never a runtime slot.
+        $copy['RuntimeGunmoteSlot'] = $null
         $copy['MappingConfirmed'] = $confirmed
         [pscustomobject]$copy
     }
