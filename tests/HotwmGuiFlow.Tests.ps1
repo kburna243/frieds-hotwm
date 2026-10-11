@@ -228,4 +228,138 @@
         $confirmCalls.Count | Should Be 0
         [IO.File]::ReadAllText($configPath, [Text.Encoding]::UTF8) | Should Be $original
     }
+
+    It 'loads six real Gunmote presets and edits OnScreen and OffScreen mappings on a user copy' {
+        $script:ui.Controls.CmbGunmoteKind.Items.Count | Should Be 6
+        $copy = & $script:ui.GunmoteDispatch 'CopyLayout' $null
+        $copy.Success | Should Be $true
+        $copy.MappingCount | Should BeGreaterThan 0
+        $row = $script:ui.Controls.GridGunmoteMappings.ItemsSource | Where-Object Input -eq 'A' | Select-Object -First 1
+        $row | Should Not Be $null
+        $row.OnScreen = '360.custom-fire'
+        $row.OffScreen = '360.custom-reload'
+        $script:ui.Controls.TextGunmoteTitle.Text = 'Editable test layout'
+        $built = & $script:ui.GunmoteDispatch 'BuildLayout' $null
+        $built.Success | Should Be $true
+        $built.Layout.Title | Should Be 'Editable test layout'
+        $built.Layout.All.OnScreen.A | Should Be '360.custom-fire'
+        $built.Layout.All.OffScreen.A | Should Be '360.custom-reload'
+        $script:ui.Controls.TextGunmotePreview.Visibility | Should Be ([Windows.Visibility]::Collapsed)
+    }
+
+    It 'commits an active WPF mapping cell before building the reviewed save proposal' {
+        $null = & $script:ui.GunmoteDispatch 'CopyLayout' $null
+        $script:ui.Window.Show()
+        $script:ui.Controls.MainTabs.SelectedIndex = 3
+        $script:ui.Window.UpdateLayout()
+        $grid = $script:ui.Controls.GridGunmoteMappings
+        $row = $grid.ItemsSource | Where-Object Input -eq 'A' | Select-Object -First 1
+        $grid.ScrollIntoView($row)
+        $grid.SelectedItem = $row
+        $grid.CurrentCell = [System.Windows.Controls.DataGridCellInfo]::new($row, $grid.Columns[1])
+        $grid.BeginEdit() | Should Be $true
+        $grid.UpdateLayout()
+
+        function Find-HotwmVisibleTextBox([System.Windows.DependencyObject]$Node) {
+            if ($Node -is [System.Windows.Controls.TextBox] -and $Node.IsVisible) { return $Node }
+            for ($childIndex = 0; $childIndex -lt [System.Windows.Media.VisualTreeHelper]::GetChildrenCount($Node); $childIndex++) {
+                $match = Find-HotwmVisibleTextBox ([System.Windows.Media.VisualTreeHelper]::GetChild($Node, $childIndex))
+                if ($match) { return $match }
+            }
+        }
+        $editor = Find-HotwmVisibleTextBox $grid
+        $editor | Should Not Be $null
+        $editor.Text = '360.edited-in-cell'
+
+        $directory = Join-Path $script:folderFixtures 'GunmoteCellEditKeymaps'
+        [void][IO.Directory]::CreateDirectory($directory)
+        $proposals = New-Object 'System.Collections.Generic.List[object]'
+        $save = & $script:ui.GunmoteDispatch 'SaveLayout' @{
+            KeymapsDir=$directory; FileName='cell-edit.json'
+            Confirm={ param($proposal) [void]$proposals.Add($proposal); return $false }.GetNewClosure()
+            ProcessChecker={ return $true }
+        }
+        $save.Success | Should Be $false
+        $proposals.Count | Should Be 1
+        ($proposals[0].ProposedContent | ConvertFrom-Json).All.OnScreen.A | Should Be '360.edited-in-cell'
+        (Test-Path -LiteralPath (Join-Path $directory 'cell-edit.json')) | Should Be $false
+        $script:ui.Window.Hide()
+    }
+
+    It 'imports an existing Gunmote layout read-only into the mapping editor' {
+        $null = & $script:ui.GunmoteDispatch 'CopyLayout' $null
+        $built = & $script:ui.GunmoteDispatch 'BuildLayout' $null
+        $importPath = Join-Path $script:folderFixtures 'existing-gunmote-layout.json'
+        $source = ConvertTo-Json -InputObject $built.Layout -Depth 100
+        [IO.File]::WriteAllText($importPath, $source, (New-Object Text.UTF8Encoding($false)))
+        $imported = & $script:ui.GunmoteDispatch 'ImportLayout' @{ Path=$importPath }
+        $imported.Success | Should Be $true
+        $imported.Layout.Title | Should Be $built.Layout.Title
+        $script:ui.Controls.GridGunmoteMappings.Items.Count | Should Be $imported.MappingCount
+        [IO.File]::ReadAllText($importPath, [Text.Encoding]::UTF8) | Should Be $source
+    }
+
+    It 'requires explicit approval and a closed Gunmote process before writing a layout' {
+        $null = & $script:ui.GunmoteDispatch 'CopyLayout' $null
+        $directory = Join-Path $script:folderFixtures 'GunmoteKeymaps'
+        [void][IO.Directory]::CreateDirectory($directory)
+        $target = Join-Path $directory 'reviewed-user-layout.json'
+        $confirmCalls = New-Object 'System.Collections.Generic.List[object]'
+        $declined = & $script:ui.GunmoteDispatch 'SaveLayout' @{
+            KeymapsDir=$directory; FileName='reviewed-user-layout.json'
+            Confirm={ param($proposal) [void]$confirmCalls.Add($proposal); return $false }.GetNewClosure()
+            ProcessChecker={ return $true }
+        }
+        $declined.Success | Should Be $false
+        $confirmCalls.Count | Should Be 1
+        $confirmCalls[0].TargetPath | Should Be ([IO.Path]::GetFullPath($target))
+        (Test-Path -LiteralPath $target) | Should Be $false
+
+        $approved = & $script:ui.GunmoteDispatch 'SaveLayout' @{
+            KeymapsDir=$directory; FileName='reviewed-user-layout.json'
+            Confirm={ param($proposal) return $true }
+            ProcessChecker={ return $false }
+        }
+        $approved.Success | Should Be $false
+        $approved.Message | Should Match 'Gunmote is running'
+        (Test-Path -LiteralPath $target) | Should Be $false
+
+        $script:ui.Controls.TextGunmoteTitle.Text = '   '
+        $invalid = & $script:ui.GunmoteDispatch 'SaveLayout' @{
+            KeymapsDir=$directory; FileName='invalid-title.json'
+            Confirm={ param($proposal) throw 'Confirmation must not run for invalid layout.' }
+            ProcessChecker={ return $true }
+        }
+        $invalid.Success | Should Be $false
+        $invalid.Message | Should Match 'valid Title'
+        (Test-Path -LiteralPath (Join-Path $directory 'invalid-title.json')) | Should Be $false
+    }
+
+    It 'rejects a target changed during confirmation and does not overwrite the concurrent file' {
+        $null = & $script:ui.GunmoteDispatch 'CopyLayout' $null
+        $directory = Join-Path $script:folderFixtures 'GunmoteChangedKeymaps'
+        [void][IO.Directory]::CreateDirectory($directory)
+        $target = Join-Path $directory 'changed-user-layout.json'
+        $changedText = '{"concurrent":"writer"}'
+        $changed = & $script:ui.GunmoteDispatch 'SaveLayout' @{
+            KeymapsDir=$directory; FileName='changed-user-layout.json'
+            Confirm={ param($proposal) [IO.File]::WriteAllText($target, $changedText, (New-Object Text.UTF8Encoding($false))); return $true }.GetNewClosure()
+            ProcessChecker={ return $true }
+        }
+        $changed.Success | Should Be $false
+        $changed.Message | Should Match 'changed|snapshot|modified|state'
+        [IO.File]::ReadAllText($target, [Text.Encoding]::UTF8) | Should Be $changedText
+    }
+
+    It 'does not offer a chooser write until a layout save succeeds' {
+        $directory = Join-Path $script:folderFixtures 'GunmoteChooserKeymaps'
+        [void][IO.Directory]::CreateDirectory($directory)
+        $chooserPath = Join-Path $directory 'Keymaps.json'
+        $original = '{"LayoutChooser":[]}'
+        [IO.File]::WriteAllText($chooserPath, $original, (New-Object Text.UTF8Encoding($false)))
+        $result = & $script:ui.GunmoteDispatch 'AddChooser' @{ KeymapsPath=$chooserPath; Confirm={ return $true }; ProcessChecker={ return $true } }
+        $result.Success | Should Be $false
+        $result.Message | Should Match 'Save a layout successfully'
+        [IO.File]::ReadAllText($chooserPath, [Text.Encoding]::UTF8) | Should Be $original
+    }
 }

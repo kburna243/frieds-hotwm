@@ -42,6 +42,7 @@ $deviceScript = Join-Path $srcDir 'HotwmDevices.ps1'
 if (Test-Path $deviceScript) { . $deviceScript }
 $profileScript = Join-Path $srcDir 'HotwmProfiles.ps1'
 if (Test-Path $profileScript) { . $profileScript }
+$gunmoteScript = Join-Path $srcDir 'HotwmGunmote.ps1'
 
 if (-not (Test-Path $xamlPath)) {
     throw "XAML file not found at: $xamlPath"
@@ -668,6 +669,262 @@ $controls.BtnExportButtonProfile.Add_Click({
     $dialog.FileName = ([string]$controls.TextButtonProfileName.Text) + '.json'
     if ($dialog.ShowDialog() -eq $true) { [void](& $profileDispatcher 'ExportButtons' @{ Path = $dialog.FileName }) }
 }.GetNewClosure())
+
+function Show-HotwmReviewedFileProposal {
+    param([string]$Title, [string]$TargetPath, [string]$Content, [string]$Effect)
+    $dialog = New-Object System.Windows.Window
+    $dialog.Title = $Title
+    $dialog.Owner = $window
+    $dialog.WindowStartupLocation = 'CenterOwner'
+    $dialog.Width = 760
+    $dialog.Height = 620
+    $dialog.MinWidth = 560
+    $dialog.MinHeight = 420
+    $dialog.Background = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#12131C')
+    $dialog.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#ECEFF4')
+    $root = New-Object System.Windows.Controls.Grid
+    $root.Margin = [System.Windows.Thickness]::new(14)
+    [void]$root.RowDefinitions.Add((New-Object System.Windows.Controls.RowDefinition -Property @{ Height=[System.Windows.GridLength]::Auto }))
+    [void]$root.RowDefinitions.Add((New-Object System.Windows.Controls.RowDefinition -Property @{ Height=[System.Windows.GridLength]::new(1,[System.Windows.GridUnitType]::Star) }))
+    [void]$root.RowDefinitions.Add((New-Object System.Windows.Controls.RowDefinition -Property @{ Height=[System.Windows.GridLength]::Auto }))
+    $summary = New-Object System.Windows.Controls.StackPanel
+    [System.Windows.Controls.Grid]::SetRow($summary, 0)
+    $targetText = New-Object System.Windows.Controls.TextBlock
+    $targetText.Text = "Target: $TargetPath`n$Effect`nGunmote must be closed after you approve. This does not select or activate the layout."
+    $targetText.TextWrapping = 'Wrap'
+    $targetText.Margin = [System.Windows.Thickness]::new(0,0,0,10)
+    [void]$summary.Children.Add($targetText)
+    [void]$root.Children.Add($summary)
+    $contentBox = New-Object System.Windows.Controls.TextBox
+    $contentBox.Text = $Content
+    $contentBox.IsReadOnly = $true
+    $contentBox.AcceptsReturn = $true
+    $contentBox.VerticalScrollBarVisibility = 'Auto'
+    $contentBox.HorizontalScrollBarVisibility = 'Auto'
+    $contentBox.FontFamily = New-Object System.Windows.Media.FontFamily('Consolas')
+    $contentBox.Background = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#0E1017')
+    $contentBox.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString('#ECEFF4')
+    [System.Windows.Controls.Grid]::SetRow($contentBox, 1)
+    [void]$root.Children.Add($contentBox)
+    $buttons = New-Object System.Windows.Controls.StackPanel
+    $buttons.Orientation = 'Horizontal'
+    $buttons.HorizontalAlignment = 'Right'
+    $buttons.Margin = [System.Windows.Thickness]::new(0,10,0,0)
+    [System.Windows.Controls.Grid]::SetRow($buttons, 2)
+    $approve = New-Object System.Windows.Controls.Button
+    $approve.Content = 'Approve this file change'
+    $approve.Margin = [System.Windows.Thickness]::new(0,0,8,0)
+    $approve.Padding = [System.Windows.Thickness]::new(12,6,12,6)
+    $approve.IsDefault = $true
+    $approve.Add_Click({ $dialog.DialogResult = $true; $dialog.Close() }.GetNewClosure())
+    $cancel = New-Object System.Windows.Controls.Button
+    $cancel.Content = 'Cancel'
+    $cancel.Padding = [System.Windows.Thickness]::new(12,6,12,6)
+    $cancel.IsCancel = $true
+    $cancel.Add_Click({ $dialog.DialogResult = $false; $dialog.Close() }.GetNewClosure())
+    [void]$buttons.Children.Add($approve)
+    [void]$buttons.Children.Add($cancel)
+    [void]$root.Children.Add($buttons)
+    $dialog.Content = $root
+    return ($dialog.ShowDialog() -eq $true)
+}
+
+$gunmoteState = [pscustomobject]@{
+    Initialized=$false; Catalog=$null; Layout=$null; LayoutResult=$null; SavedLayoutTitle=$null; SavedPath=$null; Actions=$null; Applied=$null
+}
+$buildGunmoteLayout = {
+    if (-not $gunmoteState.Layout) { throw 'Copy a shipped preset or import a layout first.' }
+    $layout = ConvertFrom-Json -InputObject (ConvertTo-Json -InputObject $gunmoteState.Layout -Depth 100)
+    $layout.Title = [string]$controls.TextGunmoteTitle.Text
+    $onMap = [ordered]@{}
+    $offMap = [ordered]@{}
+    foreach ($row in $controls.GridGunmoteMappings.ItemsSource) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$row.OnScreen)) { $onMap[[string]$row.Input] = [string]$row.OnScreen }
+        if (-not [string]::IsNullOrWhiteSpace([string]$row.OffScreen)) { $offMap[[string]$row.Input] = [string]$row.OffScreen }
+    }
+    $layout.All.OnScreen = ConvertFrom-Json -InputObject (ConvertTo-Json -InputObject $onMap -Depth 100)
+    $layout.All.OffScreen = ConvertFrom-Json -InputObject (ConvertTo-Json -InputObject $offMap -Depth 100)
+    $layout
+}.GetNewClosure()
+$gunmoteDispatcher = {
+    param([string]$Operation, [object]$Argument)
+    try {
+        $previousActions = $gunmoteState.Actions
+        $previousApplied = $gunmoteState.Applied
+        . $setupCoreScript
+        . $gunmoteScript
+        if ($previousActions) { $script:HotwmGunmoteActions = $previousActions }
+        if ($previousApplied) { $script:HotwmGunmoteApplied = $previousApplied }
+        $gunmoteState.Actions = $script:HotwmGunmoteActions
+        $gunmoteState.Applied = $script:HotwmGunmoteApplied
+        if (-not $gunmoteState.Initialized) {
+            $gunmoteState.Catalog = Get-HotwmGunmoteLayouts
+            $kinds = @($gunmoteState.Catalog.layouts.PSObject.Properties | ForEach-Object {
+                [pscustomobject]@{ Kind=$_.Name; Title=$_.Value.Title }
+            })
+            $controls.CmbGunmoteKind.ItemsSource = $kinds
+            $controls.CmbGunmoteKind.SelectedIndex = 0
+            $onColumn = [System.Windows.Controls.DataGridTextColumn]::new()
+            $onColumn.Header = 'OnScreen mapping'
+            $onColumn.Binding = [System.Windows.Data.Binding]::new('OnScreen')
+            $onColumn.Width = [System.Windows.Controls.DataGridLength]::new(1, [System.Windows.Controls.DataGridLengthUnitType]::Star)
+            [void]$controls.GridGunmoteMappings.Columns.Add($onColumn)
+            $inputColumn = [System.Windows.Controls.DataGridTextColumn]::new()
+            $inputColumn.Header = 'Gunmote input'
+            $inputColumn.Binding = [System.Windows.Data.Binding]::new('Input')
+            $inputColumn.IsReadOnly = $true
+            $inputColumn.Width = [System.Windows.Controls.DataGridLength]::new(1, [System.Windows.Controls.DataGridLengthUnitType]::Auto)
+            [void]$controls.GridGunmoteMappings.Columns.Insert(0, $inputColumn)
+            $offColumn = [System.Windows.Controls.DataGridTextColumn]::new()
+            $offColumn.Header = 'OffScreen mapping'
+            $offColumn.Binding = [System.Windows.Data.Binding]::new('OffScreen')
+            $offColumn.Width = [System.Windows.Controls.DataGridLength]::new(1, [System.Windows.Controls.DataGridLengthUnitType]::Star)
+            [void]$controls.GridGunmoteMappings.Columns.Add($offColumn)
+            $gunmoteState.Initialized = $true
+        }
+        switch ($Operation) {
+            'Initialize' { return [pscustomobject]@{ Success=$true; LayoutKinds=$gunmoteState.Catalog.layouts.PSObject.Properties.Count } }
+            'CopyLayout' {
+                $selected = $controls.CmbGunmoteKind.SelectedItem
+                if (-not $selected) { throw 'Choose a shipped layout preset first.' }
+                $layout = New-HotwmGunmoteUserLayout -Kind ([string]$selected.Kind) -Title ([string]$selected.Title)
+                $gunmoteState.Layout = $layout
+                $controls.TextGunmoteTitle.Text = [string]$layout.Title
+                $controls.TextGunmoteFileName.Text = ($selected.Kind.ToLowerInvariant() + '_user.json')
+                $gunmoteState.LayoutResult = $null
+                $controls.BtnAddGunmoteChooser.IsEnabled = $false
+                $items = New-Object 'System.Collections.ObjectModel.ObservableCollection[object]'
+                $keys = @($layout.All.OnScreen.PSObject.Properties.Name) + @($layout.All.OffScreen.PSObject.Properties.Name) | Sort-Object -Unique
+                foreach ($key in $keys) {
+                    $on = $layout.All.OnScreen.PSObject.Properties[[string]$key]
+                    $off = $layout.All.OffScreen.PSObject.Properties[[string]$key]
+                    $items.Add([pscustomobject]@{
+                        Input=[string]$key
+                        OnScreen=if ($on) { [string]$on.Value } else { '' }
+                        OffScreen=if ($off) { [string]$off.Value } else { '' }
+                    })
+                }
+                $controls.GridGunmoteMappings.ItemsSource = $items
+                $controls.TextGunmoteStatus.Text = "Copied $($selected.Title). Edit the mappings and review the exact file before saving."
+                return [pscustomobject]@{ Success=$true; Layout=$layout; MappingCount=$items.Count }
+            }
+            'ImportLayout' {
+                $layout = Import-HotwmGunmoteLayout -Path ([string]$Argument.Path)
+                $gunmoteState.Layout = $layout
+                $controls.TextGunmoteTitle.Text = [string]$layout.Title
+                $controls.TextGunmoteFileName.Text = [System.IO.Path]::GetFileName([string]$Argument.Path)
+                $gunmoteState.LayoutResult = $null
+                $controls.BtnAddGunmoteChooser.IsEnabled = $false
+                $items = New-Object 'System.Collections.ObjectModel.ObservableCollection[object]'
+                $keys = @($layout.All.OnScreen.PSObject.Properties.Name) + @($layout.All.OffScreen.PSObject.Properties.Name) | Sort-Object -Unique
+                foreach ($key in $keys) {
+                    $on = $layout.All.OnScreen.PSObject.Properties[[string]$key]
+                    $off = $layout.All.OffScreen.PSObject.Properties[[string]$key]
+                    $items.Add([pscustomobject]@{
+                        Input=[string]$key
+                        OnScreen=if ($on) { [string]$on.Value } else { '' }
+                        OffScreen=if ($off) { [string]$off.Value } else { '' }
+                    })
+                }
+                $controls.GridGunmoteMappings.ItemsSource = $items
+                $controls.TextGunmoteStatus.Text = 'Imported existing layout for editing. No file was changed.'
+                return [pscustomobject]@{ Success=$true; Layout=$layout; MappingCount=$items.Count }
+            }
+            'BuildLayout' {
+                $layout = & $buildGunmoteLayout
+                Test-HotwmGunmoteLayout -Layout $layout | Out-Null
+                return [pscustomobject]@{ Success=$true; Layout=$layout }
+            }
+            'SaveLayout' {
+                if (-not $controls.GridGunmoteMappings.CommitEdit([System.Windows.Controls.DataGridEditingUnit]::Cell, $true)) { throw 'Finish the active mapping edit with a valid value before saving.' }
+                if (-not $controls.GridGunmoteMappings.CommitEdit([System.Windows.Controls.DataGridEditingUnit]::Row, $true)) { throw 'Finish the active mapping row with valid values before saving.' }
+                $layout = & $buildGunmoteLayout
+                Test-HotwmGunmoteLayout -Layout $layout | Out-Null
+                $directory = if ($Argument -and $Argument.KeymapsDir) { [string]$Argument.KeymapsDir } else { [string]$controls.TextGunmoteKeymapsDir.Text }
+                $fileName = if ($Argument -and $Argument.FileName) { [string]$Argument.FileName } else { [string]$controls.TextGunmoteFileName.Text }
+                $action = New-HotwmGunmoteLayoutAction -Layout $layout -KeymapsDir $directory -FileName $fileName
+                $controls.TextGunmotePreview.Text = $action.ProposedContent
+                $controls.TextGunmotePreview.Visibility = [System.Windows.Visibility]::Visible
+                $summary = "Save the edited layout '$($layout.Title)' to $($action.TargetPath). This writes the file only; it will not select it or restart Gunmote."
+                $confirm = if ($Argument -and $Argument.Confirm) { $Argument.Confirm } else {
+                    $display = $summary; $content = $action.ProposedContent; $target = $action.TargetPath
+                    { param($proposal) Show-HotwmReviewedFileProposal -Title 'Review Gunmote layout file' -TargetPath $target -Content $content -Effect $display }.GetNewClosure()
+                }
+                $checker = if ($Argument -and $Argument.ProcessChecker) { $Argument.ProcessChecker } else { $null }
+                $result = Invoke-HotwmGunmoteLayoutAction -Action $action -Confirm $confirm -ProcessChecker $checker
+                if ($result.Success) {
+                    $gunmoteState.LayoutResult = $result
+                    $gunmoteState.SavedLayoutTitle = [string]$layout.Title
+                    $gunmoteState.SavedPath = [string]$result.LayoutPath
+                    $controls.BtnAddGunmoteChooser.IsEnabled = $true
+                    $controls.TextGunmoteStatus.Text = "Saved reviewed layout to $($result.LayoutPath). The active layout was not changed."
+                } else {
+                    $controls.TextGunmoteStatus.Text = 'Save declined; no layout file was written.'
+                }
+                return [pscustomobject]@{ Success=$result.Success; Action=$action; Result=$result; Layout=$layout }
+            }
+            'AddChooser' {
+                if (-not $gunmoteState.LayoutResult -or -not $gunmoteState.LayoutResult.Success) { throw 'Save a layout successfully before adding its chooser entry.' }
+                $keymapsPath = if ($Argument -and $Argument.KeymapsPath) { [string]$Argument.KeymapsPath } else { [string]$controls.TextGunmoteChooserPath.Text }
+                $action = New-HotwmGunmoteChooserAction -LayoutResult $gunmoteState.LayoutResult -KeymapsPath $keymapsPath -LayoutTitle ([string]$gunmoteState.SavedLayoutTitle)
+                $controls.TextGunmotePreview.Text = $action.ProposedContent
+                $controls.TextGunmotePreview.Visibility = [System.Windows.Visibility]::Visible
+                $summary = "Add '$($gunmoteState.SavedLayoutTitle)' pointing to $($gunmoteState.SavedPath) in $($action.TargetPath). This does not select or activate the layout."
+                $confirm = if ($Argument -and $Argument.Confirm) { $Argument.Confirm } else {
+                    $display = $summary; $content = $action.ProposedContent; $target = $action.TargetPath
+                    { param($proposal) Show-HotwmReviewedFileProposal -Title 'Review Gunmote chooser update' -TargetPath $target -Content $content -Effect $display }.GetNewClosure()
+                }
+                $checker = if ($Argument -and $Argument.ProcessChecker) { $Argument.ProcessChecker } else { $null }
+                $result = Invoke-HotwmGunmoteChooserAction -Action $action -Confirm $confirm -ProcessChecker $checker
+                $controls.TextGunmoteStatus.Text = if ($result.Success) { 'Chooser entry added. Gunmote was not restarted and no layout was selected.' } else { 'Chooser update declined; Keymaps.json was unchanged.' }
+                return [pscustomobject]@{ Success=$result.Success; Action=$action; Result=$result }
+            }
+            default { throw "Unknown Gunmote layout operation: $Operation" }
+        }
+    } catch {
+        $message = $_.Exception.Message
+        $controls.TextGunmoteStatus.Text = "Layout editor: $message"
+        return [pscustomobject]@{ Success=$false; Message=$message }
+    }
+}.GetNewClosure()
+$controls.BtnCopyGunmoteLayout.Add_Click({ [void](& $gunmoteDispatcher 'CopyLayout' $null) }.GetNewClosure())
+$controls.BtnImportGunmoteLayout.Add_Click({
+    $dialog = New-Object Microsoft.Win32.OpenFileDialog
+    $dialog.Title = 'Import existing Gunmote layout'
+    $dialog.Filter = 'Gunmote layout (*.json)|*.json|All files (*.*)|*.*'
+    if ($dialog.ShowDialog() -eq $true) { [void](& $gunmoteDispatcher 'ImportLayout' @{ Path=$dialog.FileName }) }
+}.GetNewClosure())
+$controls.BtnBrowseGunmoteKeymapsDir.Add_Click({
+    Add-Type -AssemblyName System.Windows.Forms
+    $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
+    $dialog.Description = 'Choose the Gunmote Keymaps directory for a new layout file'
+    if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { $controls.TextGunmoteKeymapsDir.Text = $dialog.SelectedPath }
+}.GetNewClosure())
+$controls.BtnBrowseGunmoteChooser.Add_Click({
+    $dialog = New-Object Microsoft.Win32.OpenFileDialog
+    $dialog.Title = 'Choose existing Gunmote Keymaps.json'
+    $dialog.Filter = 'Keymaps.json|Keymaps.json|JSON files (*.json)|*.json'
+    $dialog.FileName = 'Keymaps.json'
+    if ($dialog.ShowDialog() -eq $true) {
+        $controls.TextGunmoteChooserPath.Text = $dialog.FileName
+        if ([string]::IsNullOrWhiteSpace($controls.TextGunmoteKeymapsDir.Text)) { $controls.TextGunmoteKeymapsDir.Text = [System.IO.Path]::GetDirectoryName($dialog.FileName) }
+    }
+}.GetNewClosure())
+$controls.BtnSaveGunmoteLayout.Add_Click({ [void](& $gunmoteDispatcher 'SaveLayout' $null) }.GetNewClosure())
+$controls.BtnAddGunmoteChooser.Add_Click({ [void](& $gunmoteDispatcher 'AddChooser' $null) }.GetNewClosure())
+$layoutDirtyHandler = {
+    if ($gunmoteState.LayoutResult) {
+        $gunmoteState.LayoutResult = $null
+        $controls.BtnAddGunmoteChooser.IsEnabled = $false
+        $controls.TextGunmoteStatus.Text = 'Layout edits changed after save. Review and save again before adding a chooser entry.'
+    }
+}.GetNewClosure()
+$controls.TextGunmoteTitle.Add_TextChanged($layoutDirtyHandler)
+$controls.TextGunmoteFileName.Add_TextChanged($layoutDirtyHandler)
+$controls.TextGunmoteKeymapsDir.Add_TextChanged($layoutDirtyHandler)
+$controls.GridGunmoteMappings.Add_CellEditEnding($layoutDirtyHandler)
+[void](& $gunmoteDispatcher 'Initialize' $null)
+
 # 6. Event Wiring
 # Slider change
 $controls.SliderHoldMs.Add_ValueChanged({
@@ -920,6 +1177,7 @@ $result = [pscustomobject]@{
     TraceLog = $traceLogPath
     ConfigMerge = ${function:Build-HotwmConfigUpdates}
     ProfileDispatch = $profileDispatcher
+    GunmoteDispatch = $gunmoteDispatcher
     ValidateFolder = $validateFolderAction
     KitStatus = $kitStatusQuery
 }

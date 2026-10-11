@@ -415,6 +415,43 @@
                         <GroupBox Header="Current integration status">
                             <TextBlock Text="Button intents are stored as manual/Kit-profile notes. Mapping them to a controller or game is a separate integration step and is not performed here." TextWrapping="Wrap" Margin="6" Foreground="#8F93A2"/>
                         </GroupBox>
+                        <GroupBox Header="Gunmote layout editor">
+                            <StackPanel Margin="6">
+                                <TextBlock Text="Edit the actual OnScreen and OffScreen mappings. Saving writes a layout file after review while Gunmote is closed; it does not switch the active layout or restart Gunmote." TextWrapping="Wrap" Foreground="#8F93A2" Margin="0,0,0,8"/>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                    <TextBlock Text="Shipped layout:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <ComboBox x:Name="CmbGunmoteKind" Grid.Column="1" DisplayMemberPath="Title" Padding="6,4"/>
+                                    <Button x:Name="BtnCopyGunmoteLayout" Grid.Column="2" Content="Copy preset" Style="{StaticResource AccentButton}" Margin="8,0,0,0"/>
+                                    <Button x:Name="BtnImportGunmoteLayout" Grid.Column="3" Content="Import layout…" Margin="8,0,0,0"/>
+                                </Grid>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                    <TextBlock Text="Layout title:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBox x:Name="TextGunmoteTitle" Grid.Column="1" Padding="7,4" Background="#0E1017" Foreground="#ECEFF4" BorderBrush="#3B4261"/>
+                                    <TextBox x:Name="TextGunmoteFileName" Grid.Column="2" Width="180" Text="menu_user.json" ToolTip="New JSON filename inside the Keymaps directory" Margin="8,0,0,0" Padding="7,4" Background="#0E1017" Foreground="#ECEFF4" BorderBrush="#3B4261"/>
+                                </Grid>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                                    <TextBlock Text="Keymaps folder:" VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                    <TextBox x:Name="TextGunmoteKeymapsDir" Grid.Column="1" Padding="7,4" Background="#0E1017" Foreground="#ECEFF4" BorderBrush="#3B4261"/>
+                                    <Button x:Name="BtnBrowseGunmoteKeymapsDir" Grid.Column="2" Content="Browse…" Margin="8,0,0,0"/>
+                                </Grid>
+                                <DataGrid x:Name="GridGunmoteMappings" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
+                                          Background="#181A26" RowBackground="#202334" AlternatingRowBackground="#25293E"
+                                          Foreground="#ECEFF4" BorderBrush="#2D3148" HeadersVisibility="Column"
+                                          GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#2D3148" MaxHeight="360"/>
+                                <TextBox x:Name="TextGunmotePreview" IsReadOnly="True" AcceptsReturn="True" TextWrapping="NoWrap" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto" MaxHeight="200" Visibility="Collapsed" Margin="0,8,0,0" Background="#0E1017" Foreground="#8F93A2" BorderBrush="#2D3148"/>
+                                <TextBlock x:Name="TextGunmoteStatus" Text="Copy a shipped preset or import an existing layout to begin." TextWrapping="Wrap" Foreground="#8F93A2" Margin="0,8,0,4"/>
+                                <WrapPanel Margin="0,6,0,0">
+                                    <Button x:Name="BtnSaveGunmoteLayout" Content="Review and save layout…" Style="{StaticResource SuccessButton}" Margin="0,0,8,6"/>
+                                    <TextBox x:Name="TextGunmoteChooserPath" Width="250" ToolTip="Existing Keymaps.json file" Margin="0,0,8,6" Padding="7,4" Background="#0E1017" Foreground="#ECEFF4" BorderBrush="#3B4261"/>
+                                    <Button x:Name="BtnBrowseGunmoteChooser" Content="Choose Keymaps.json…" Margin="0,0,8,6"/>
+                                    <Button x:Name="BtnAddGunmoteChooser" Content="Separately add saved layout to chooser…" IsEnabled="False" Margin="0,0,8,6"/>
+                                </WrapPanel>
+                                <TextBlock Text="Chooser update only adds this saved filename to the chooser list. It does not select a layout or change Gunmote's active/default layout." TextWrapping="Wrap" Foreground="#8F93A2"/>
+                            </StackPanel>
+                        </GroupBox>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
