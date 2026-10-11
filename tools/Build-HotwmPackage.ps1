@@ -67,6 +67,19 @@ try {
         }
     }
 
+    # The portable build must carry its brand attribution and the design source
+    # locally; consumers should not need access to the author's source checkout.
+    $brandDocs = @('brand-assets.md', 'design.md')
+    $docsStage = Join-Path $stageDir 'docs'
+    New-Item -ItemType Directory -Path $docsStage -Force | Out-Null
+    foreach ($docName in $brandDocs) {
+        $sourcePath = Join-Path $projectRoot (Join-Path 'docs' $docName)
+        if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf)) {
+            throw "Required brand attribution document is missing: $sourcePath"
+        }
+        Copy-Item -LiteralPath $sourcePath -Destination (Join-Path $docsStage $docName) -Force
+    }
+
     # Remove existing zip if present
     if (Test-Path $zipPath) {
         Remove-Item -Path $zipPath -Force

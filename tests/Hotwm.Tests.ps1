@@ -237,6 +237,34 @@ Describe 'hotwm — Packaging' {
         ($entryNames -contains 'README.md') | Should Be $true
         ($entryNames -contains 'README.de.md') | Should Be $true
         ($entryNames -contains 'Start-HotwmDashboard.bat') | Should Be $true
+
+        foreach ($state in @('friendly', 'controller', 'celebrate', 'surprised')) {
+            ($entryNames -contains "gui\assets\brand\character-$state.svg") | Should Be $true
+            ($entryNames -contains "gui\assets\brand\character-$state.png") | Should Be $true
+        }
+        ($entryNames -contains 'docs\brand-assets.md') | Should Be $true
+        ($entryNames -contains 'docs\design.md') | Should Be $true
+
+        $zip = [System.IO.Compression.ZipFile]::OpenRead($pkg.ArchiveFile)
+        try {
+            $brandEntry = $zip.GetEntry('docs\brand-assets.md')
+            $designEntry = $zip.GetEntry('docs\design.md')
+            $brandReader = New-Object System.IO.StreamReader($brandEntry.Open())
+            $designReader = New-Object System.IO.StreamReader($designEntry.Open())
+            try {
+                $brandText = $brandReader.ReadToEnd()
+                $designText = $designReader.ReadToEnd()
+            } finally {
+                $brandReader.Dispose()
+                $designReader.Dispose()
+            }
+            $brandText | Should Match 'Source directory:.*frieds-retrogaming-skills'
+            $designText | Should Match 'Copyright © 2026 Friedrich Börner'
+            $designText | Should Match 'creativecommons\.org/licenses/by-sa/4\.0/'
+            $designText | Should Match 'source body is unchanged'
+        } finally {
+            $zip.Dispose()
+        }
     }
 }
 
