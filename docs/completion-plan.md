@@ -1,6 +1,6 @@
 # Hotwm: vollständige Wiimote-Lightgun-Einrichtung
 
-Stand: 2026-10-11. Status: Grundplan unabhängig geprüft; Nutzerergänzung zu Kopplung/Identität/Kalibrierung integriert. Umsetzung noch nicht begonnen.
+Stand: 2026-10-11. Status: Umsetzung läuft; Grundplan unabhängig geprüft, Nutzerergänzung zu Kopplung/Identität/Kalibrierung integriert. Teilabnahmen sind in verification.md dokumentiert; vollständige Produkt-/Hardwareabnahme steht aus.
 
 ## Ziel und Grenzen
 
