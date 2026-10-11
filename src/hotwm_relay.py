@@ -525,8 +525,10 @@ async def selftest():
 
     up = await asyncio.start_server(fake_ffbblaster, "127.0.0.1", 18002)
     proxy = await serve(18000, 18002, 150)
-    r, cw = await asyncio.open_connection("127.0.0.1", 18000)
+    # t0 before connecting: the upstream sends as soon as the proxy connects, so the recoil starts after t0 and a
+    # correct 150 ms stretch ends at >= t0 + 0.15 however slow the machine is (late reads only add time).
     t0 = time.monotonic()
+    r, cw = await asyncio.open_connection("127.0.0.1", 18000)
     while len(got) < 13:
         got.append((await r.readuntil(b"\n"), time.monotonic() - t0))
     cw.close()
