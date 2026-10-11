@@ -89,8 +89,10 @@ function Get-HotwmMappedDiscovery {
     if ($PSBoundParameters.ContainsKey('DeviceRecords')) { $discovery = Get-HotwmDeviceDiscovery -DeviceRecords $DeviceRecords }
     else { $discovery = Get-HotwmDeviceDiscovery }
     $devices = @($discovery.Devices)
-    if ($devices.Count -gt 0 -and @($Mappings).Count -gt 0) {
-        $resolved = @(Resolve-HotwmPlayerMappings -Devices $devices -Mappings $Mappings)
+    $mappingList = @()
+    if ($null -ne $Mappings) { $mappingList = @($Mappings) }
+    if ($devices.Count -gt 0 -and $mappingList.Count -gt 0) {
+        $resolved = @(Resolve-HotwmPlayerMappings -Devices $devices -Mappings $mappingList)
         if ($resolved.Count -eq 1 -and $resolved[0] -is [array]) { $devices = @($resolved[0]) }
         else { $devices = $resolved }
     }
@@ -116,7 +118,7 @@ function New-HotwmSetupSession {
     if ($SavedState) {
         $savedMappings = ConvertTo-HotwmValidatedDesiredMappings -Mappings @($SavedState.DesiredMappings)
         if (-not $PSBoundParameters.ContainsKey('Mappings') -or @($Mappings).Count -eq 0) { $Mappings = $savedMappings }
-    } else { $Mappings = ConvertTo-HotwmValidatedDesiredMappings -Mappings $Mappings }
+    } else { $Mappings = @(ConvertTo-HotwmValidatedDesiredMappings -Mappings $Mappings) }
     $mapped = if ($PSBoundParameters.ContainsKey('DeviceRecords')) {
         Get-HotwmMappedDiscovery -DeviceRecords $DeviceRecords -Mappings $Mappings
     } else { Get-HotwmMappedDiscovery -Mappings $Mappings }

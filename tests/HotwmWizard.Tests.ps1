@@ -28,6 +28,17 @@ Describe 'hotwm guided setup session state' {
         }
     }
 
+    It 'starts with an identified first controller when there are no saved mappings without marking it ready' {
+        $session = New-HotwmSetupSession -Root $script:testRoot -Mode Quick -DeviceRecords @($script:records[0]) -ConfigPath $script:configPath -Mappings @()
+
+        @($session.Devices).Count | Should Be 1
+        $session.Devices[0].Mac | Should Be 'AA:BB:CC:DD:EE:FF'
+        $session.Devices[0].DesiredPlayer | Should Be $null
+        $session.Devices[0].MappingConfirmed | Should Be $false
+        @($session.Mappings).Count | Should Be 0
+        $session.Ready | Should Be $false
+    }
+
     It 'rejects a missing setup folder and ambiguous persistent mapping inputs' {
         { New-HotwmSetupSession -Root (Join-Path $script:testRoot 'missing') -Mode Quick -DeviceRecords @() } | Should Throw
         { New-HotwmSetupSession -Root $script:testRoot -Mode Quick -DeviceRecords $script:records -Mappings @(
