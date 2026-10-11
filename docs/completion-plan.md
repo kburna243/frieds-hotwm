@@ -97,9 +97,9 @@ Koordination/Architektur: Hauptagent. Separate Review-/Verifier-Lane bewertet fe
 
 ## Verifikation und Risiken
 
-Baseline und Wiederholung nach relevanten Änderungen: Windows PowerShell/Pester über tests/Run-Tests.ps1, Python-Tests anhand des vorhandenen Testmoduls/CI-Einstiegs. Neue Pester-Dateien explizit einbinden, da der Runner standardmäßig nur Hotwm.Tests.ps1 lädt. Separat Syntax-/XAML-Prüfung und GUI-/Hardwaretests. Eingriffslogik gegen temporäre Dateien/Fakes testen, nicht am echten Cabinet. Paketbau später in neues Artefaktziel, damit bestehende Releases nicht überschrieben werden.
+Baseline und Wiederholung nach relevanten Änderungen: Windows PowerShell/Pester über tests/Run-Tests.ps1, Python-Tests anhand des vorhandenen Testmoduls/CI-Einstiegs. Der inzwischen erweiterte Runner entdeckt alle *.Tests.ps1-Suiten. Separat Syntax-/XAML-Prüfung und GUI-/Hardwaretests. Eingriffslogik gegen temporäre Dateien/Fakes testen, nicht am echten Cabinet. Paketbau in ein neues Artefaktziel, damit bestehende Releases nicht überschrieben werden.
 
-Konkreter vorhandener Einstieg im code/-Ordner: powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Run-Tests.ps1. Bestehende Integritätsprüfungen erwarten UTF-8 BOM bei PowerShell-Dateien (tests/Hotwm.Tests.ps1:21–60); bei neuen Modulen berücksichtigen. GUI -NoShow und Fake-Kit-Tests erlauben hardwarefreie Prüfungen, ersetzen aber keine physische Abnahme. Tests bislang im Planungsschritt nicht ausgeführt.
+Konkreter vorhandener Einstieg im code/-Ordner: powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\tests\Run-Tests.ps1. Bestehende Integritätsprüfungen erwarten UTF-8 BOM bei PowerShell-Dateien (tests/Hotwm.Tests.ps1:21–60); bei neuen Modulen berücksichtigen. GUI -NoShow und Fake-Kit-Tests erlauben hardwarefreie Prüfungen, ersetzen aber keine physische Abnahme. Baseline und abgeschlossene Teilabnahmen stehen in verification.md.
 
 Hauptrisiken: fehlende Gunmote-Automatisierung (vorher erforschen, manuelle Führung); doppelte Konfigurationsverantwortung (Kit-Vertrag); irreführender Hardwarestatus (Evidenzstufen); verlorene Bestandsdaten (Merge/Sicherung/Konfliktprüfung); UI-Blockieren bei Prüfungen (Hintergrundarbeit und Abbruch); ausufernde Expertenoptionen (nur belegte Fähigkeiten anbieten).
 

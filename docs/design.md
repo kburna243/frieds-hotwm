@@ -4,6 +4,11 @@
 > This is the source design system copied for the HOTWM GUI brand assets. HOTWM
 > uses the visual direction where it fits the existing Windows interface; the
 > source project remains the authority for the complete brand system.
+>
+> Copyright © 2026 Friedrich Börner. This Markdown design document is shared
+> under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/), as stated
+> in the source project's `LICENSE-CONTENT`. The source body is unchanged;
+> this provenance and adaptation note was added for Hotwm.
 
 ## 1. Brand
 
