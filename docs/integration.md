@@ -50,7 +50,8 @@ this snapshot never invokes it. No external Agent currently consumes this
 snapshot; future changes must present a proposal through the trusted GUI path
 before adding any write behavior. The GUI's existing canned Agent success
 messages are not evidence that an Agent has queried this contract or changed
-the cabinet.
+the cabinet. These legacy placeholders belong to the separate RetroGamingAgent
+project; Hotwm does not treat them as a successful integration.
 
 ## Verification
 
