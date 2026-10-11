@@ -40,6 +40,8 @@ $setupCoreScript = Join-Path $srcDir 'HotwmSetup.ps1'
 if (Test-Path $setupCoreScript) { . $setupCoreScript }
 $deviceScript = Join-Path $srcDir 'HotwmDevices.ps1'
 if (Test-Path $deviceScript) { . $deviceScript }
+$profileScript = Join-Path $srcDir 'HotwmProfiles.ps1'
+if (Test-Path $profileScript) { . $profileScript }
 
 if (-not (Test-Path $xamlPath)) {
     throw "XAML file not found at: $xamlPath"
@@ -449,6 +451,223 @@ $controls.RadioQuickMode.Add_Checked($modeChanged)
 $controls.RadioCustomMode.Add_Checked($modeChanged)
 $controls.RadioExpertMode.Add_Checked($modeChanged)
 & $modeChanged
+# Profile editor state is separate from shipped templates. The dispatcher reuses the same file-action transaction for each proposal.
+$profileState = [pscustomobject]@{ EffectTemplates = @(); ButtonTemplates = @(); ActiveEffect = $null; ActiveButtons = $null }
+$buildEffectProfile = {
+    if (-not $profileState.ActiveEffect) { throw 'Copy or import an effect profile before editing or applying it.' }
+    $profile = ConvertFrom-Json -InputObject (ConvertTo-Json -InputObject $profileState.ActiveEffect -Depth 30)
+    $profile.Name = [string]$controls.TextEffectProfileName.Text
+    $profile.Settings.global.hold_ms = [int]$controls.SliderHoldMs.Value
+    $profile.Settings.global.ammo_drop_shot = [bool]$controls.ChkAmmoDrop.IsChecked
+    $profile.Settings.global.led_mode = if ($controls.ChkLedLifeBar.IsChecked) { 'life_bar' } else { 'none' }
+    $profile.Settings.global.trace_enabled = [bool]$controls.ChkTraceLog.IsChecked
+    $games = [ordered]@{}
+    # Keep imported game entries even when this installation has no matching row.
+    # Applying such an entry is rejected by the profile action with an explicit diagnostic.
+    foreach ($importedGame in $profile.Settings.games.PSObject.Properties) {
+        $games[$importedGame.Name] = $importedGame.Value
+    }
+    foreach ($gameRow in $controls.GridGameProfiles.ItemsSource) {
+        $game = [ordered]@{ rumble = [bool]$gameRow.Rumble; leds = [bool]$gameRow.Leds }
+        $previous = $profile.Settings.games.PSObject.Properties[[string]$gameRow.Name]
+        if ($null -ne $previous -and $null -ne $previous.Value.PSObject.Properties['hold_ms']) { $game.hold_ms = [int]$previous.Value.hold_ms }
+        $games[[string]$gameRow.Name] = $game
+    }
+    $profile.Settings.games = ConvertFrom-Json -InputObject (ConvertTo-Json -InputObject $games -Depth 20)
+    $profile
+}.GetNewClosure()
+$buildButtonProfile = {
+    if (-not $profileState.ActiveButtons) { throw 'Copy or import a button template before editing it.' }
+    $profile = ConvertFrom-Json -InputObject (ConvertTo-Json -InputObject $profileState.ActiveButtons -Depth 30)
+    $profile.Name = [string]$controls.TextButtonProfileName.Text
+    $profile.Intents = @($controls.GridButtonIntents.ItemsSource | ForEach-Object { [pscustomobject]@{ Id=[string]$_.Id; Label=[string]$_.Label } })
+    $profile
+}.GetNewClosure()
+$profileDispatcher = {
+    param([string]$Operation, [object]$Argument)
+    try {
+        . $setupCoreScript
+        . $profileScript
+        switch ($Operation) {
+            'Initialize' {
+                $profileState.EffectTemplates = @(Get-HotwmTemplates -Kind Effects)
+                $profileState.ButtonTemplates = @(Get-HotwmTemplates -Kind Buttons)
+                $controls.CmbEffectPreset.ItemsSource = $profileState.EffectTemplates
+                $controls.CmbEffectPreset.SelectedIndex = 0
+                $controls.CmbButtonTemplate.ItemsSource = $profileState.ButtonTemplates
+                $controls.CmbButtonTemplate.SelectedIndex = 0
+                $controls.TextEffectPresetDescription.Text = $profileState.EffectTemplates[0].Description
+                if ($controls.GridButtonIntents.Columns.Count -eq 0) {
+                    $idColumn = [System.Windows.Controls.DataGridTextColumn]::new()
+                    $idColumn.Header = 'Intent'
+                    $idColumn.Binding = [System.Windows.Data.Binding]::new('Id')
+                    $idColumn.IsReadOnly = $true
+                    [void]$controls.GridButtonIntents.Columns.Add($idColumn)
+                    $labelColumn = [System.Windows.Controls.DataGridTextColumn]::new()
+                    $labelColumn.Header = 'Editable label'
+                    $labelColumn.Binding = [System.Windows.Data.Binding]::new('Label')
+                    $labelColumn.Width = [System.Windows.Controls.DataGridLength]::new(1, [System.Windows.Controls.DataGridLengthUnitType]::Star)
+                    [void]$controls.GridButtonIntents.Columns.Add($labelColumn)
+                }
+                return [pscustomobject]@{ Success=$true; Effects=$profileState.EffectTemplates.Count; Buttons=$profileState.ButtonTemplates.Count }
+            }
+            'CopyEffect' {
+                $template = $controls.CmbEffectPreset.SelectedItem
+                if (-not $template) { throw 'Choose a shipped effect preset first.' }
+                $profileState.ActiveEffect = New-HotwmUserProfile -Template $template -Name ([string]$controls.TextEffectProfileName.Text)
+                $settings = $profileState.ActiveEffect.Settings.global
+                $controls.SliderHoldMs.Value = [double]$settings.hold_ms
+                $controls.ChkAmmoDrop.IsChecked = [bool]$settings.ammo_drop_shot
+                $controls.ChkLedLifeBar.IsChecked = ($settings.led_mode -eq 'life_bar')
+                $controls.ChkTraceLog.IsChecked = [bool]$settings.trace_enabled
+                $controls.TextEffectProfileStatus.Text = "Copied '$($template.Name)' to editable user profile '$($profileState.ActiveEffect.Name)'. Shipped preset unchanged; adjust shared values in Recoil & Profiles Tuning."
+                return [pscustomobject]@{ Success=$true; Profile=$profileState.ActiveEffect }
+            }
+            'BuildEffect' {
+                $profile = & $buildEffectProfile
+                $profile = Assert-HotwmProfile -Profile $profile
+                return [pscustomobject]@{ Success=$true; Profile=$profile }
+            }
+            'ImportEffect' {
+                $profile = Import-HotwmProfile -Path ([string]$Argument.Path)
+                if ($profile.Kind -cne 'effects') { throw 'Selected file is not an effects profile.' }
+                $profileState.ActiveEffect = $profile
+                $controls.TextEffectProfileName.Text = $profile.Name
+                $controls.SliderHoldMs.Value = [double]$profile.Settings.global.hold_ms
+                $controls.ChkAmmoDrop.IsChecked = [bool]$profile.Settings.global.ammo_drop_shot
+                $controls.ChkLedLifeBar.IsChecked = ($profile.Settings.global.led_mode -eq 'life_bar')
+                $controls.ChkTraceLog.IsChecked = [bool]$profile.Settings.global.trace_enabled
+                foreach ($game in $profile.Settings.games.PSObject.Properties) {
+                    $row = @($controls.GridGameProfiles.ItemsSource | Where-Object { $_.Name -eq $game.Name }) | Select-Object -First 1
+                    if ($row) {
+                        if ($null -ne $game.Value.PSObject.Properties['rumble']) { $row.Rumble = [bool]$game.Value.rumble }
+                        if ($null -ne $game.Value.PSObject.Properties['leds']) { $row.Leds = [bool]$game.Value.leds }
+                    }
+                }
+                $controls.TextEffectProfileStatus.Text = "Imported editable profile '$($profile.Name)'. Import only reads the file; Apply requires separate approval."
+                return [pscustomobject]@{ Success=$true; Profile=$profile }
+            }
+            'ApplyEffect' {
+                $profile = & $buildEffectProfile
+                $profile = Assert-HotwmProfile -Profile $profile
+                $configTarget = if ($Argument -and $Argument.ConfigPath) { [string]$Argument.ConfigPath } else { [string]$configPath }
+                $action = New-HotwmEffectProfileAction -Profile $profile -ConfigPath $configTarget
+                # Preview the actual merged postimage. A profile can inherit a game's
+                # existing hold_ms even when its own profile value omits that field.
+                $proposedConfig = ConvertFrom-Json -InputObject $action.ProposedContent
+                $gamePreview = ($proposedConfig.games.PSObject.Properties | ForEach-Object {
+                    $gameHold = if ($null -ne $_.Value.PSObject.Properties['hold_ms']) { [string]$_.Value.hold_ms } else { "global ($($proposedConfig.global.hold_ms))" }
+                    "$($_.Name): rumble=$($_.Value.rumble), LEDs=$($_.Value.leds), hold_ms=$gameHold"
+                }) -join "`n"
+                $summary = "Profile: $($profile.Name)`nTarget: $($action.TargetPath)`nGlobal: hold_ms=$($proposedConfig.global.hold_ms), ammo_drop_shot=$($proposedConfig.global.ammo_drop_shot), led_mode=$($proposedConfig.global.led_mode), trace_enabled=$($proposedConfig.global.trace_enabled)`nPer-game settings:`n$gamePreview`nScope is global/per-game; no per-player effects or physical output confirmation."
+                $confirm = if ($Argument -and $Argument.Confirm) { $Argument.Confirm } else {
+                    $display = $summary
+                    { param($proposal) [System.Windows.MessageBox]::Show("Apply this effect profile?`n`n$display`n`nOther configuration fields are preserved. A backup is made before writing.", 'Confirm effect profile', [System.Windows.MessageBoxButton]::YesNo, [System.Windows.MessageBoxImage]::Question) -eq [System.Windows.MessageBoxResult]::Yes }.GetNewClosure()
+                }
+                $applied = Invoke-HotwmFileAction -Action $action -Confirm $confirm
+                $controls.TextEffectProfileStatus.Text = if ($applied.Success) { "Applied '$($profile.Name)' to $configTarget. Backup: $($applied.BackupPath)" } else { 'Apply declined; no configuration changes were made.' }
+                return [pscustomobject]@{ Success=$applied.Success; Status=$applied.Status; Profile=$profile; Action=$action; Preview=$summary; Applied=$applied }
+            }
+            'ExportEffect' {
+                $profile = & $buildEffectProfile
+                $profile = Assert-HotwmProfile -Profile $profile
+                $action = Export-HotwmProfileAction -Profile $profile -Path ([string]$Argument.Path)
+                $summary = "Export effects profile '$($profile.Name)' to:`n$($action.TargetPath)`n`nThe export contains the editable global and per-game values."
+                $confirm = if ($Argument.Confirm) { $Argument.Confirm } else {
+                    $display = $summary
+                    { param($proposal) [System.Windows.MessageBox]::Show("$display`n`nProceed?", 'Confirm profile export', [System.Windows.MessageBoxButton]::YesNo, [System.Windows.MessageBoxImage]::Question) -eq [System.Windows.MessageBoxResult]::Yes }.GetNewClosure()
+                }
+                $applied = Invoke-HotwmFileAction -Action $action -Confirm $confirm
+                $controls.TextEffectProfileStatus.Text = if ($applied.Success) { "Exported profile to $($action.TargetPath)." } else { 'Export declined; no file was written.' }
+                return [pscustomobject]@{ Success=$applied.Success; Status=$applied.Status; Profile=$profile; Action=$action; Applied=$applied }
+            }
+            'CopyButtons' {
+                $template = $controls.CmbButtonTemplate.SelectedItem
+                if (-not $template) { throw 'Choose a shipped button template first.' }
+                $profileState.ActiveButtons = New-HotwmUserProfile -Template $template -Name ([string]$controls.TextButtonProfileName.Text)
+                $items = New-Object 'System.Collections.ObjectModel.ObservableCollection[object]'
+                foreach ($intent in $profileState.ActiveButtons.Intents) {
+                    $row = [pscustomobject]@{ Id=[string]$intent.Id; Label=[string]$intent.Label }; $items.Add($row)
+                }
+                $controls.GridButtonIntents.ItemsSource = $items
+                $controls.TextButtonProfileStatus.Text = "Copied '$($template.Name)' into an editable checklist. These intent labels do not configure a controller or game."
+                return [pscustomobject]@{ Success=$true; Profile=$profileState.ActiveButtons }
+            }
+            'BuildButtons' {
+                $profile = & $buildButtonProfile
+                $profile = Assert-HotwmProfile -Profile $profile
+                return [pscustomobject]@{ Success=$true; Profile=$profile }
+            }
+            'ImportButtons' {
+                $profile = Import-HotwmProfile -Path ([string]$Argument.Path)
+                if ($profile.Kind -cne 'buttons') { throw 'Selected file is not a button intent profile.' }
+                $profileState.ActiveButtons = $profile
+                $controls.TextButtonProfileName.Text = $profile.Name
+                $items = New-Object 'System.Collections.ObjectModel.ObservableCollection[object]'
+                foreach ($intent in $profile.Intents) {
+                    $row = [pscustomobject]@{ Id=[string]$intent.Id; Label=[string]$intent.Label }; $items.Add($row)
+                }
+                $controls.GridButtonIntents.ItemsSource = $items
+                $controls.TextButtonProfileStatus.Text = "Imported editable intent profile '$($profile.Name)'. It remains a manual/Kit-profile checklist."
+                return [pscustomobject]@{ Success=$true; Profile=$profile }
+            }
+            'ExportButtons' {
+                $profile = & $buildButtonProfile
+                $profile = Assert-HotwmProfile -Profile $profile
+                $action = Export-HotwmProfileAction -Profile $profile -Path ([string]$Argument.Path)
+                $summary = "Export button intent profile '$($profile.Name)' to:`n$($action.TargetPath)`n`nThis stores semantic labels only; it does not configure hardware."
+                $confirm = if ($Argument.Confirm) { $Argument.Confirm } else {
+                    $display = $summary
+                    { param($proposal) [System.Windows.MessageBox]::Show("$display`n`nProceed?", 'Confirm button profile export', [System.Windows.MessageBoxButton]::YesNo, [System.Windows.MessageBoxImage]::Question) -eq [System.Windows.MessageBoxResult]::Yes }.GetNewClosure()
+                }
+                $applied = Invoke-HotwmFileAction -Action $action -Confirm $confirm
+                $controls.TextButtonProfileStatus.Text = if ($applied.Success) { "Exported checklist to $($action.TargetPath)." } else { 'Export declined; no file was written.' }
+                return [pscustomobject]@{ Success=$applied.Success; Status=$applied.Status; Profile=$profile; Action=$action; Applied=$applied }
+            }
+            default { throw "Unknown profile editor operation: $Operation" }
+        }
+    } catch {
+        $message = $_.Exception.Message
+        if ($Operation -in @('CopyEffect','BuildEffect','ImportEffect','ApplyEffect','ExportEffect')) { $controls.TextEffectProfileStatus.Text = "Profile error: $message" }
+        elseif ($Operation -in @('CopyButtons','BuildButtons','ImportButtons','ExportButtons')) { $controls.TextButtonProfileStatus.Text = "Profile error: $message" }
+        return [pscustomobject]@{ Success=$false; Message=$message }
+    }
+}.GetNewClosure()
+# Initialize template choices after the editor's shared controls exist.
+[void](& $profileDispatcher 'Initialize' $null)
+$controls.CmbEffectPreset.Add_SelectionChanged({
+    if ($controls.CmbEffectPreset.SelectedItem) { $controls.TextEffectPresetDescription.Text = [string]$controls.CmbEffectPreset.SelectedItem.Description }
+}.GetNewClosure())
+$controls.BtnCopyEffectProfile.Add_Click({ [void](& $profileDispatcher 'CopyEffect' $null) }.GetNewClosure())
+$controls.BtnApplyEffectProfile.Add_Click({ [void](& $profileDispatcher 'ApplyEffect' $null) }.GetNewClosure())
+$controls.BtnImportEffectProfile.Add_Click({
+    $dialog = New-Object Microsoft.Win32.OpenFileDialog
+    $dialog.Title = 'Import Hotwm effects profile'
+    $dialog.Filter = 'Hotwm profile (*.json)|*.json|All files (*.*)|*.*'
+    if ($dialog.ShowDialog() -eq $true) { [void](& $profileDispatcher 'ImportEffect' @{ Path = $dialog.FileName }) }
+}.GetNewClosure())
+$controls.BtnExportEffectProfile.Add_Click({
+    $dialog = New-Object Microsoft.Win32.SaveFileDialog
+    $dialog.Title = 'Export Hotwm effects profile'
+    $dialog.Filter = 'Hotwm profile (*.json)|*.json'
+    $dialog.FileName = ([string]$controls.TextEffectProfileName.Text) + '.json'
+    if ($dialog.ShowDialog() -eq $true) { [void](& $profileDispatcher 'ExportEffect' @{ Path = $dialog.FileName }) }
+}.GetNewClosure())
+$controls.BtnOpenEffectTuning.Add_Click({ $controls.MainTabs.SelectedIndex = 4 }.GetNewClosure())
+$controls.BtnCopyButtonProfile.Add_Click({ [void](& $profileDispatcher 'CopyButtons' $null) }.GetNewClosure())
+$controls.BtnImportButtonProfile.Add_Click({
+    $dialog = New-Object Microsoft.Win32.OpenFileDialog
+    $dialog.Title = 'Import Hotwm button intent profile'
+    $dialog.Filter = 'Hotwm profile (*.json)|*.json|All files (*.*)|*.*'
+    if ($dialog.ShowDialog() -eq $true) { [void](& $profileDispatcher 'ImportButtons' @{ Path = $dialog.FileName }) }
+}.GetNewClosure())
+$controls.BtnExportButtonProfile.Add_Click({
+    $dialog = New-Object Microsoft.Win32.SaveFileDialog
+    $dialog.Title = 'Export Hotwm button intent profile'
+    $dialog.Filter = 'Hotwm profile (*.json)|*.json'
+    $dialog.FileName = ([string]$controls.TextButtonProfileName.Text) + '.json'
+    if ($dialog.ShowDialog() -eq $true) { [void](& $profileDispatcher 'ExportButtons' @{ Path = $dialog.FileName }) }
+}.GetNewClosure())
 # 6. Event Wiring
 # Slider change
 $controls.SliderHoldMs.Add_ValueChanged({
@@ -700,6 +919,7 @@ $result = [pscustomobject]@{
     Config   = $script:configPath
     TraceLog = $traceLogPath
     ConfigMerge = ${function:Build-HotwmConfigUpdates}
+    ProfileDispatch = $profileDispatcher
     ValidateFolder = $validateFolderAction
     KitStatus = $kitStatusQuery
 }

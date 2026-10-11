@@ -95,4 +95,137 @@
         $xaml | Should Match 'Calibration is manual'
         $xaml | Should Match 'Pairing is semi-automatic'
     }
+
+    It 'copies and imports editable effect profiles, then requires a proposal approval to apply' {
+        $script:ui.Controls.CmbEffectPreset.SelectedIndex = 1
+        $copied = & $script:ui.ProfileDispatch 'CopyEffect' $null
+        $copied.Success | Should Be $true
+        $copied.Profile.Settings.global.hold_ms | Should Be 100
+        $script:ui.Controls.SliderHoldMs.Value = 185
+        $built = & $script:ui.ProfileDispatch 'BuildEffect' $null
+        $built.Success | Should Be $true
+        $built.Profile.Settings.global.hold_ms | Should Be 185
+
+        $importPath = Join-Path $script:folderFixtures 'effect-import.json'
+        $importProfileObject = $built.Profile
+        $importProfileObject.Settings.games.Rambo | Add-Member -NotePropertyName hold_ms -NotePropertyValue 222
+        $importProfile = $importProfileObject | ConvertTo-Json -Depth 20
+        [IO.File]::WriteAllText($importPath, $importProfile, (New-Object Text.UTF8Encoding($false)))
+        $imported = & $script:ui.ProfileDispatch 'ImportEffect' @{ Path = $importPath }
+        $imported.Success | Should Be $true
+        $script:ui.Controls.TextEffectProfileName.Text = 'Imported and edited'
+        $script:ui.Controls.SliderHoldMs.Value = 205
+
+        $configPath = Join-Path $script:folderFixtures 'effect-target.json'
+        $configObject = Get-Content -LiteralPath (Join-Path $script:repoRoot 'config\hotw.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+        $configObject.global | Add-Member -NotePropertyName vendor -NotePropertyValue 'retain'
+        $configObject.games.Rambo | Add-Member -NotePropertyName vendor -NotePropertyValue 'retain'
+        $configObject | Add-Member -NotePropertyName root_vendor -NotePropertyValue @{ tag = 7 }
+        $original = ConvertTo-Json -InputObject $configObject -Depth 20
+        [IO.File]::WriteAllText($configPath, $original, (New-Object Text.UTF8Encoding($false)))
+        $capturedProposals = New-Object 'System.Collections.Generic.List[object]'
+        $declined = & $script:ui.ProfileDispatch 'ApplyEffect' @{
+            ConfigPath = $configPath
+            Confirm = { param($proposal) [void]$capturedProposals.Add($proposal); return $false }.GetNewClosure()
+        }
+        $declined.Success | Should Be $false
+        $capturedProposals.Count | Should Be 1
+        $capturedProposals[0].TargetPath | Should Be ([IO.Path]::GetFullPath($configPath))
+        $preview = $capturedProposals[0].ProposedContent | ConvertFrom-Json
+        $preview.global.hold_ms | Should Be 205
+        $preview.global.vendor | Should Be 'retain'
+        $preview.games.Rambo.hold_ms | Should Be 222
+        $after = [IO.File]::ReadAllText($configPath, [Text.Encoding]::UTF8)
+        $after | Should Be $original
+        $script:ui.Controls.TextEffectProfileStatus.Text | Should Match 'declined'
+    }
+
+    It 'copies editable semantic button intents without claiming they configure hardware' {
+        $copy = & $script:ui.ProfileDispatch 'CopyButtons' $null
+        $copy.Success | Should Be $true
+        $copy.Profile.TargetCapability | Should Be 'manual-or-kit-profile'
+        $intent = $script:ui.Controls.GridButtonIntents.ItemsSource | Where-Object { $_.Id -eq 'shoot' } | Select-Object -First 1
+        $intent.Label = 'Fire primary'
+        $built = & $script:ui.ProfileDispatch 'BuildButtons' $null
+        $built.Success | Should Be $true
+        ($built.Profile.Intents | Where-Object Id -eq 'shoot').Label | Should Be 'Fire primary'
+        $script:ui.Controls.TextButtonProfileStatus.Text | Should Match 'manual|checklist|No button profile'
+        $built.Profile.TargetCapability | Should Be 'manual-or-kit-profile'
+        $exportPath = Join-Path $script:folderFixtures 'button-export.json'
+        $capturedProposals = New-Object 'System.Collections.Generic.List[object]'
+        $declined = & $script:ui.ProfileDispatch 'ExportButtons' @{
+            Path = $exportPath
+            Confirm = { param($proposal) [void]$capturedProposals.Add($proposal); return $false }.GetNewClosure()
+        }
+        $declined.Success | Should Be $false
+        $capturedProposals.Count | Should Be 1
+        $capturedProposals[0].TargetPath | Should Be ([IO.Path]::GetFullPath($exportPath))
+        (Test-Path -LiteralPath $exportPath) | Should Be $false
+    }
+
+    It 'previews an existing per-game hold override when the profile inherits global timing' {
+        $copied = & $script:ui.ProfileDispatch 'CopyEffect' $null
+        $copied.Success | Should Be $true
+        $profile = & $script:ui.ProfileDispatch 'BuildEffect' $null
+        $profile.Success | Should Be $true
+        $profile.Profile.Settings.games.Rambo.PSObject.Properties['hold_ms'] | Should Be $null
+
+        $configPath = Join-Path $script:folderFixtures 'inherited-hold-target.json'
+        $config = Get-Content -LiteralPath (Join-Path $script:repoRoot 'config\hotw.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+        $config.games.Rambo | Add-Member -NotePropertyName hold_ms -NotePropertyValue 177
+        $original = ConvertTo-Json -InputObject $config -Depth 20
+        [IO.File]::WriteAllText($configPath, $original, (New-Object Text.UTF8Encoding($false)))
+
+        $proposals = New-Object 'System.Collections.Generic.List[object]'
+        $applied = & $script:ui.ProfileDispatch 'ApplyEffect' @{
+            ConfigPath=$configPath
+            Confirm={ param($proposal) [void]$proposals.Add($proposal); return $false }.GetNewClosure()
+        }
+        $applied.Success | Should Be $false
+        $proposals.Count | Should Be 1
+        $proposed = $proposals[0].ProposedContent | ConvertFrom-Json
+        $proposed.games.Rambo.hold_ms | Should Be 177
+        $applied.Preview | Should Match 'Rambo: rumble=True, LEDs=True, hold_ms=177'
+        $applied.Preview | Should Match 'Target:.*inherited-hold-target.json'
+        [IO.File]::ReadAllText($configPath, [Text.Encoding]::UTF8) | Should Be $original
+    }
+
+    It 'retains imported games outside this installation for export and rejects applying them explicitly' {
+        $null = & $script:ui.ProfileDispatch 'CopyEffect' $null
+        $built = & $script:ui.ProfileDispatch 'BuildEffect' $null
+        $profileObject = $built.Profile
+        $profileObject.Settings.games | Add-Member -NotePropertyName externalGame -NotePropertyValue ([pscustomobject]@{ rumble=$false; leds=$true; hold_ms=130 })
+        $importPath = Join-Path $script:folderFixtures 'external-game-profile.json'
+        [IO.File]::WriteAllText($importPath, ($profileObject | ConvertTo-Json -Depth 20), (New-Object Text.UTF8Encoding($false)))
+        $imported = & $script:ui.ProfileDispatch 'ImportEffect' @{ Path=$importPath }
+        $imported.Success | Should Be $true
+        $builtWithExternal = & $script:ui.ProfileDispatch 'BuildEffect' $null
+        $builtWithExternal.Success | Should Be $true
+        $builtWithExternal.Profile.Settings.games.externalGame.hold_ms | Should Be 130
+
+        $exportPath = Join-Path $script:folderFixtures 'external-game-export.json'
+        $exportProposals = New-Object 'System.Collections.Generic.List[object]'
+        $exported = & $script:ui.ProfileDispatch 'ExportEffect' @{
+            Path=$exportPath
+            Confirm={ param($proposal) [void]$exportProposals.Add($proposal); return $false }.GetNewClosure()
+        }
+        $exported.Success | Should Be $false
+        $exportProposals.Count | Should Be 1
+        $exportedProfile = $exportProposals[0].ProposedContent | ConvertFrom-Json
+        $exportedProfile.Settings.games.externalGame.hold_ms | Should Be 130
+        (Test-Path -LiteralPath $exportPath) | Should Be $false
+
+        $configPath = Join-Path $script:folderFixtures 'external-game-target.json'
+        $original = [IO.File]::ReadAllText((Join-Path $script:repoRoot 'config\hotw.json'), [Text.Encoding]::UTF8)
+        [IO.File]::WriteAllText($configPath, $original, (New-Object Text.UTF8Encoding($false)))
+        $confirmCalls = New-Object 'System.Collections.Generic.List[object]'
+        $apply = & $script:ui.ProfileDispatch 'ApplyEffect' @{
+            ConfigPath=$configPath
+            Confirm={ param($proposal) [void]$confirmCalls.Add($proposal); return $true }.GetNewClosure()
+        }
+        $apply.Success | Should Be $false
+        $apply.Message | Should Match 'externalGame.*not present'
+        $confirmCalls.Count | Should Be 0
+        [IO.File]::ReadAllText($configPath, [Text.Encoding]::UTF8) | Should Be $original
+    }
 }

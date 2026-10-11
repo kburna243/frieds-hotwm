@@ -54,6 +54,11 @@
             <Setter Property="Margin" Value="0,4"/>
             <Setter Property="Cursor" Value="Hand"/>
         </Style>
+        <Style TargetType="RadioButton">
+            <Setter Property="Foreground" Value="#ECEFF4"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
         <Style TargetType="Slider">
             <Setter Property="Foreground" Value="#00E5FF"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
@@ -110,7 +115,7 @@
         </Border>
 
         <!-- TABS -->
-        <TabControl Grid.Row="1" Background="#181A26" BorderBrush="#2D3148" BorderThickness="1">
+        <TabControl x:Name="MainTabs" Grid.Row="1" Background="#181A26" BorderBrush="#2D3148" BorderThickness="1">
             <!-- TAB 0: GUIDED SETUP -->
             <TabItem Header="Setup">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
@@ -130,13 +135,13 @@
                         <GroupBox Header="Setup mode">
                             <StackPanel Margin="6">
                                 <StackPanel Orientation="Horizontal">
-                                    <RadioButton x:Name="RadioQuickMode" Content="Quick" IsChecked="True" Margin="0,0,20,0"/>
-                                    <RadioButton x:Name="RadioCustomMode" Content="Custom" Margin="0,0,20,0"/>
-                                    <RadioButton x:Name="RadioExpertMode" Content="Expert"/>
+                                    <RadioButton x:Name="RadioQuickMode" Content="Quick" IsChecked="True" Foreground="#ECEFF4" Margin="0,0,20,0"/>
+                                    <RadioButton x:Name="RadioCustomMode" Content="Custom" Foreground="#ECEFF4" Margin="0,0,20,0"/>
+                                    <RadioButton x:Name="RadioExpertMode" Content="Expert" Foreground="#ECEFF4"/>
                                 </StackPanel>
                                 <Border Background="#202334" Padding="10" Margin="0,8,0,0" CornerRadius="4">
                                     <StackPanel>
-                                        <TextBlock x:Name="TextQuickModeDetail" Text="Recommended path: inspect the target folder, review detected devices, then make each required change with its own approval." TextWrapping="Wrap" Foreground="#8F93A2"/>
+                                        <TextBlock x:Name="TextQuickModeDetail" Text="Recommended path: inspect the folder, then review each requested change. Found controllers still need player assignment and calibration." TextWrapping="Wrap" Foreground="#8F93A2"/>
                                         <TextBlock x:Name="TextCustomModeDetail" Text="Review folder, device identity, player mapping, and manual calibration evidence one step at a time." TextWrapping="Wrap" Foreground="#8F93A2" Visibility="Collapsed"/>
                                         <TextBlock x:Name="TextExpertModeDetail" Text="Expert details: target path and raw device instance IDs are shown for diagnosis. Device presence alone never sets a playable status." TextWrapping="Wrap" Foreground="#8F93A2" Visibility="Collapsed"/>
                                     </StackPanel>
@@ -338,6 +343,81 @@
                 </ScrollViewer>
             </TabItem>
 
+            <!-- TAB: EDITABLE EFFECT PROFILES -->
+            <TabItem Header="Effects">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="14">
+                        <GroupBox Header="Effect profile template">
+                            <StackPanel Margin="6">
+                                <TextBlock Text="Choose a shipped starting point, copy it into a named user profile, then edit the shared recoil controls and game settings in Recoil &amp; Profiles Tuning." TextWrapping="Wrap" Foreground="#8F93A2" Margin="0,0,0,10"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                    <TextBlock Text="Shipped preset:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                    <ComboBox x:Name="CmbEffectPreset" Grid.Column="1" MinWidth="240" DisplayMemberPath="Name" Padding="6,4"/>
+                                </Grid>
+                                <TextBlock x:Name="TextEffectPresetDescription" Text="Select a preset to see its description." TextWrapping="Wrap" Foreground="#8F93A2" Margin="0,8,0,8"/>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                    <TextBlock Text="User profile name:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                    <TextBox x:Name="TextEffectProfileName" Grid.Column="1" Text="My effects" Padding="8,5" Background="#0E1017" Foreground="#ECEFF4" BorderBrush="#3B4261"/>
+                                </Grid>
+                                <WrapPanel>
+                                    <Button x:Name="BtnCopyEffectProfile" Content="Copy preset to user profile" Style="{StaticResource AccentButton}" Margin="0,0,8,6"/>
+                                    <Button x:Name="BtnImportEffectProfile" Content="Import user profile…" Margin="0,0,8,6"/>
+                                    <Button x:Name="BtnExportEffectProfile" Content="Export user profile…" Margin="0,0,8,6"/>
+                                    <Button x:Name="BtnOpenEffectTuning" Content="Edit shared effect values" Margin="0,0,8,6"/>
+                                </WrapPanel>
+                                <TextBlock x:Name="TextEffectProfileStatus" Text="No user profile copied yet." TextWrapping="Wrap" Foreground="#8F93A2" Margin="0,4,0,8"/>
+                                <Border Background="#202334" CornerRadius="4" Padding="10">
+                                    <StackPanel>
+                                        <TextBlock Text="Supported scope" FontWeight="Bold" Foreground="#00E5FF" Margin="0,0,0,4"/>
+                                        <TextBlock Text="Effects currently apply to hotwm's global and per-game settings only. They do not define per-player effects or confirm physical hardware output." TextWrapping="Wrap"/>
+                                    </StackPanel>
+                                </Border>
+                                <Button x:Name="BtnApplyEffectProfile" Content="Apply profile to hotw.json…" Style="{StaticResource SuccessButton}" HorizontalAlignment="Right" Margin="0,10,0,0"/>
+                            </StackPanel>
+                        </GroupBox>
+                        <GroupBox Header="What applying does">
+                            <TextBlock Text="Apply creates one reviewed configuration proposal. The confirmation shows the target and edited values; declining leaves hotw.json unchanged. The shipped template remains read-only." TextWrapping="Wrap" Margin="6" Foreground="#8F93A2"/>
+                        </GroupBox>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
+            <!-- TAB: SEMANTIC BUTTON PROFILE -->
+            <TabItem Header="Buttons">
+                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                    <StackPanel Margin="14">
+                        <GroupBox Header="Button intent profile">
+                            <StackPanel Margin="6">
+                                <TextBlock Text="This editable checklist records intended controls such as Shoot or Reload. It does not bind a controller, write a game mapping, or claim hardware input is configured." TextWrapping="Wrap" Foreground="#FFB020" Margin="0,0,0,10"/>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                    <TextBlock Text="Shipped template:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                    <ComboBox x:Name="CmbButtonTemplate" Grid.Column="1" MinWidth="240" DisplayMemberPath="Name" Padding="6,4"/>
+                                </Grid>
+                                <Grid Margin="0,0,0,8">
+                                    <Grid.ColumnDefinitions><ColumnDefinition Width="Auto"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions>
+                                    <TextBlock Text="User profile name:" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                    <TextBox x:Name="TextButtonProfileName" Grid.Column="1" Text="My button intents" Padding="8,5" Background="#0E1017" Foreground="#ECEFF4" BorderBrush="#3B4261"/>
+                                </Grid>
+                                <DataGrid x:Name="GridButtonIntents" AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
+                                          Background="#181A26" RowBackground="#202334" AlternatingRowBackground="#25293E"
+                                          Foreground="#ECEFF4" BorderBrush="#2D3148" HeadersVisibility="Column"
+                                          GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#2D3148" MaxHeight="260"/>
+                                <WrapPanel Margin="0,10,0,0">
+                                    <Button x:Name="BtnCopyButtonProfile" Content="Copy template to user profile" Style="{StaticResource AccentButton}" Margin="0,0,8,6"/>
+                                    <Button x:Name="BtnImportButtonProfile" Content="Import user profile…" Margin="0,0,8,6"/>
+                                    <Button x:Name="BtnExportButtonProfile" Content="Export user profile…" Margin="0,0,8,6"/>
+                                </WrapPanel>
+                                <TextBlock x:Name="TextButtonProfileStatus" Text="No button profile copied yet." TextWrapping="Wrap" Foreground="#8F93A2" Margin="0,4,0,0"/>
+                            </StackPanel>
+                        </GroupBox>
+                        <GroupBox Header="Current integration status">
+                            <TextBlock Text="Button intents are stored as manual/Kit-profile notes. Mapping them to a controller or game is a separate integration step and is not performed here." TextWrapping="Wrap" Margin="6" Foreground="#8F93A2"/>
+                        </GroupBox>
+                    </StackPanel>
+                </ScrollViewer>
+            </TabItem>
             <!-- TAB 2: CONFIGURATION & TUNING -->
             <TabItem Header="Recoil &amp; Profiles Tuning">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
